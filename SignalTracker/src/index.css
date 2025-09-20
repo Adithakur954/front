@@ -4,3 +4,10 @@
 /* This is the new section that defines the theme colors for your UI components.
   It provides solid backgrounds for both light and dark modes.
 */
+body {
+  @apply bg-white text-gray-800;
+}
+
+.dark body {
+  @apply bg-gray-900 text-gray-200;
+}

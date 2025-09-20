@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import Spinner from '../components/common/Spinner';
-import Logo from '../assets/vinfocom_logo.png'
+import Logo from '../assets/vinfocom_logo.png';
 
 const LoginPage = () => {
     const [email, setEmail] = useState('');
@@ -41,7 +41,17 @@ const LoginPage = () => {
 
     return (
         <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-indigo-100 via-white to-indigo-200 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 px-4">
-            <div className="w-full max-w-md p-8 bg-white/80 dark:bg-gray-800/90 backdrop-blur-md rounded-2xl shadow-lg space-y-6">
+            
+            {/* Card wrapper with relative for overlay */}
+            <div className="relative w-full max-w-md p-8 bg-white/80 dark:bg-gray-800/90 backdrop-blur-md rounded-2xl shadow-lg space-y-6">
+                
+                {/* Overlay spinner */}
+                {loading && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-white/70 dark:bg-gray-800/70 rounded-2xl z-10">
+                        <Spinner />
+                    </div>
+                )}
+
                 {/* Branding / Logo */}
                 <div className="text-center">
                     <div className="flex justify-center mb-4">
@@ -100,15 +110,13 @@ const LoginPage = () => {
                     <div>
                         <button
                             type="submit"
-                            className="relative flex justify-center items-center w-full px-4 py-2 text-sm font-medium text-white rounded-lg bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:bg-indigo-400 shadow-md transition-all duration-200"
+                            className="w-full px-4 py-2 text-sm font-medium text-white rounded-lg bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:bg-indigo-400 shadow-md transition-all duration-200"
                             disabled={loading}
                         >
-                            {loading ? <Spinner /> : 'Sign In'}
+                            Sign In
                         </button>
                     </div>
                 </form>
-
-               
             </div>
         </div>
     );

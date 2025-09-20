@@ -8,12 +8,9 @@ const DataTable = ({ columns, data }) => {
             <CardContent className="p-0">
                 <Table>
                     <TableHeader>
-                        <TableRow key={row.id || rowIndex}>
+                        <TableRow>
                             {columns.map((column) => (
-                                <TableCell key={column.accessor || column.header}>
-
-                                    {column.render ? column.render(row, rowIndex) : row[column.accessor]}
-                                </TableCell>
+                                <TableHead key={column.header}>{column.header}</TableHead>
                             ))}
                         </TableRow>
                     </TableHeader>
@@ -23,7 +20,6 @@ const DataTable = ({ columns, data }) => {
                                 <TableRow key={row.id || rowIndex}>
                                     {columns.map((column) => (
                                         <TableCell key={column.accessor || column.header}>
-                                            {/* This is the corrected line */}
                                             {column.render ? column.render(row, rowIndex) : row[column.accessor]}
                                         </TableCell>
                                     ))}

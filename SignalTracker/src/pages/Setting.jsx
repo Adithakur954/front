@@ -13,7 +13,6 @@ const SettingsPage = () => {
     const [thresholds, setThresholds] = useState([]);
     const [loading, setLoading] = useState(true);
 
-    // MOCK DATA - Replace with API calls
     useEffect(() => {
         const fetchSettingsData = () => {
             setLoading(true);
@@ -44,7 +43,6 @@ const SettingsPage = () => {
 
     const handleSaveChanges = () => {
         setLoading(true);
-        // TODO: API call to save settings and thresholds
         setTimeout(() => {
             toast.success("Settings saved successfully!");
             setLoading(false);
@@ -57,7 +55,7 @@ const SettingsPage = () => {
         setSettings(prev => ({ ...prev, theme: { ...prev.theme, darkMode: checked } }));
     };
 
-    if (loading) return <Spinner />;
+    if (loading || !settings) return <Spinner />;
 
     return (
         <div className="container mx-auto space-y-8">
@@ -107,14 +105,25 @@ const SettingsPage = () => {
                     <CardDescription>Customize the look and feel.</CardDescription>
                 </CardHeader>
                 <CardContent>
-                     <div className="flex items-center justify-between">
-                        <Label htmlFor="darkMode">Dark Mode</Label>
-                        <Switch
-                            id="darkMode"
-                            checked={settings.theme.darkMode}
-                            onClick= {() => handleThemeChange(!settings.theme.darkMode)}
-                        />
-                    </div>
+                       <div className="flex items-center justify-between">
+                            <Label htmlFor="darkMode">Dark Mode</Label>
+                            <Switch
+                                id="darkMode"
+                                checked={settings.theme.darkMode}
+                                onCheckedChange={handleThemeChange}
+                            />
+                        </div>
+
+                        {/* --- NEW BUTTON ADDED HERE --- */}
+                        <div className="mt-4 flex items-center justify-between">
+                             
+                             <Button
+                                 onClick={() => handleThemeChange(!settings.theme.darkMode)}
+                                 variant="outline"
+                             >
+                                 {settings.theme.darkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+                             </Button>
+                        </div>
                 </CardContent>
             </Card>
         </div>
