@@ -15,7 +15,7 @@ import {
 
 export function DatePicker({ date, setDate, className }) {
   return (
-    <Popover>
+    <Popover className="bg-white">
       <PopoverTrigger asChild>
         <Button
           variant={"outline"}
@@ -25,12 +25,18 @@ export function DatePicker({ date, setDate, className }) {
             className
           )}
         >
-          <CalendarIcon className="mr-2 h-4 w-4 bg-white" />
+          {/* Removed the hardcoded white background from the icon which caused issues in dark mode */}
+          <CalendarIcon className="mr-2 h-4 w-4" />
           {date ? format(date, "PPP") : <span>Pick a date</span>}
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-auto p-0">
-        <Calendar
+      {/* FIX: Added theme-aware background colors to the popover content.
+        - `bg-white` ensures a solid white background in light mode.
+        - `dark:bg-slate-900` provides a solid, matching background in dark mode.
+        - Added a border for better visual definition in both themes.
+      */}
+      <PopoverContent className="w-auto p-0  bg-white dark:bg-slate-900 rounded-md shadow-lg">
+        <Calendar 
           mode="single"
           selected={date}
           onSelect={setDate}

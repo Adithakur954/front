@@ -41,13 +41,24 @@ export const adminApi = {
         // Make sure this is a GET request with query parameters
         return api.get('/Admin/GetAllNetworkLogs', { params });
     },
+    deleteSession: (sessionId) => {
+        return api.delete(`/Admin/DeleteSession?id=${sessionId}`);
+    }
 };
 
 /* ---------------- EXCEL UPLOAD CONTROLLER ---------------- */
-
 export const excelApi = {
     uploadFile: (formData) => {
         return api.post('/ExcelUpload/UploadExcelFile', formData, {
+            headers: {
+                'Content-Type': 'multipart/form-data',
+            },
+        });
+    },
+
+    // Add this:
+    processCsv: (formData) => {
+        return api.post('/api/processcsv/process', formData, {
             headers: {
                 'Content-Type': 'multipart/form-data',
             },
@@ -62,15 +73,12 @@ export const excelApi = {
         return api.get(`/ExcelUpload/DownloadExcel?FileType=${fileType}`, {
             responseType: 'blob', 
         });
-
-
     },
-    
 
     getSessions: (fromDate, toDate) => {
         return api.get(`/ExcelUpload/GetSessions?fromDate=${fromDate.toISOString()}&toDate=${toDate.toISOString()}`);
-    }
-    ,getDriveTestSessions: () => {
+    },
+    getDriveTestSessions: () => {
         return api.get('/Admin/GetSessions');
     }
 };

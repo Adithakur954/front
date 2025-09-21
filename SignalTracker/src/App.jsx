@@ -1,11 +1,12 @@
-import React, { useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, Link } from 'react-router-dom'; // Import Link
+import React from 'react'; // Removed useEffect as it's no longer needed here
+import { BrowserRouter as Router, Routes, Route, Navigate, Link } from 'react-router-dom';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
-import AuthProvider,{ useAuth } from './context/AuthContext';
+import AuthProvider, { useAuth } from './context/AuthContext';
+import { ThemeProvider, useTheme } from './context/ThemeContext'; // Import the new provider and hook
 
-// Import your page components
+// --- Page Imports ---
 import LoginPage from './pages/Login';
 import DashboardPage from './pages/Dashboard';
 import MapViewPage from './pages/MapView';
@@ -16,13 +17,13 @@ import UploadDataPage from './pages/UploadData';
 import SettingsPage from './pages/Setting';
 import ManageSessionPage from './pages/ManageSession';
 
-
+// --- Route Components (Unchanged) ---
 const PrivateRoute = ({ children }) => {
     const { isAuthenticated } = useAuth();
     if (!isAuthenticated()) {
         return <Navigate to="/" replace />;
     }
-    return <AppLayout>{children}</AppLayout>; 
+    return <AppLayout>{children}</AppLayout>;
 };
 
 const PublicRoute = ({ children }) => {
@@ -38,35 +39,45 @@ const NotFoundPage = () => (
     </div>
 );
 
-function App() {
-    useEffect(() => {
-        const darkMode = localStorage.getItem("theme") === "dark";
-        document.documentElement.classList.toggle("dark", darkMode);
-    }, []);
+// A new component to make the ToastContainer theme-aware
+const ThemedToastContainer = () => {
+    const { theme } = useTheme();
+    return (
+        <ToastContainer
+            position="top-right"
+            autoClose={3000}
+            // The theme now dynamically updates when the context changes
+            theme={theme === 'system' 
+                ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') 
+                : theme
+            }
+        />
+    );
+};
 
+function App() {
+    // The old useEffect for theme has been removed. The ThemeProvider now handles everything.
     return (
         <Router>
             <AuthProvider>
-                <ToastContainer
-                    position="top-right"
-                    autoClose={3000}
-                    theme={localStorage.getItem("theme") === "dark" ? "dark" : "light"}
-                />
-                <Routes>
-                    <Route path="/" element={<PublicRoute><LoginPage /></PublicRoute>} />
-                    
-                    {/* Private Routes */}
-                    <Route path="/dashboard" element={<PrivateRoute><DashboardPage /></PrivateRoute>} />
-                    <Route path="/drive-test-sessions" element={<PrivateRoute><DriveTestSessionsPage /></PrivateRoute>} />
-                    <Route path="/map-view" element={<PrivateRoute><MapViewPage /></PrivateRoute>} />
-                    <Route path="/manage-users" element={<PrivateRoute><ManageUsersPage /></PrivateRoute>} />
-                    <Route path="/upload-data" element={<PrivateRoute><UploadDataPage /></PrivateRoute>} />
-                    <Route path="/settings" element={<PrivateRoute><SettingsPage /></PrivateRoute>} />
-                    <Route path="/manage-session" element={<PrivateRoute><ManageSessionPage /></PrivateRoute>} />
+                {/* Wrap the entire app in the ThemeProvider */}
+                <ThemeProvider storageKey="app-theme" defaultTheme="dark">
+                    <ThemedToastContainer />
+                    <Routes>
+                        <Route path="/" element={<PublicRoute><LoginPage /></PublicRoute>} />
+                        
+                        {/* Private Routes */}
+                        <Route path="/dashboard" element={<PrivateRoute><DashboardPage /></PrivateRoute>} />
+                        <Route path="/drive-test-sessions" element={<PrivateRoute><DriveTestSessionsPage /></PrivateRoute>} />
+                        <Route path="/map-view" element={<PrivateRoute><MapViewPage /></PrivateRoute>} />
+                        <Route path="/manage-users" element={<PrivateRoute><ManageUsersPage /></PrivateRoute>} />
+                        <Route path="/upload-data" element={<PrivateRoute><UploadDataPage /></PrivateRoute>} />
+                        <Route path="/settings" element={<PrivateRoute><SettingsPage /></PrivateRoute>} />
+                        <Route path="/manage-session" element={<PrivateRoute><ManageSessionPage /></PrivateRoute>} />
 
-                    
-                    <Route path="*" element={<NotFoundPage />} />
-                </Routes>
+                        <Route path="*" element={<NotFoundPage />} />
+                    </Routes>
+                </ThemeProvider>
             </AuthProvider>
         </Router>
     );

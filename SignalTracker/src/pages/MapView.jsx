@@ -306,7 +306,7 @@ const MapView = () => {
   if (!isLoaded) return <div className="h-screen w-screen flex items-center justify-center"><Spinner /></div>;
 
   return (
-    <div className="relative h-screen w-screen">
+    <div className="relative h-screen ">
       <MapHeader map={map} />
 
       <MapSidebar
