@@ -24,7 +24,7 @@ const MapSearchBox = () => {
             <StandaloneSearchBox
                 onLoad={setSearchBox}
                 onPlacesChanged={onPlacesChanged}
-            >
+            > <PlaceAutocomplete onPlaceSelect={handlePlaceSelect} />
                 <Input
                     type="text"
                     placeholder="Search location"

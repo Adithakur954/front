@@ -9,13 +9,13 @@ const API_BASE_URL = 'http://localhost:5224'; // Ensure this matches your .NET b
  * A helper function to handle API requests, centralizing error handling,
  * authentication, and headers.
  * @param {string} endpoint - The API endpoint to call (e.g., '/Admin/GetDashboardData').
- * @param {object} options - Optional fetch options (method, body, custom headers).
+ * @param {object} options - Optional fetch options, including a 'params' object for GET requests.
  * @returns {Promise<any>} - The JSON response from the API.
  */
-const apiService = async (endpoint, { body, ...customOptions } = {}) => {
+const apiService = async (endpoint, { body, params, ...customOptions } = {}) => {
   const isFormData = body instanceof FormData;
 
- const headers = isFormData ? {} : { 'Content-Type': 'application/json' };
+  const headers = isFormData ? {} : { 'Content-Type': 'application/json' };
 
   const config = {
     method: customOptions.method || 'GET',
@@ -24,42 +24,58 @@ const apiService = async (endpoint, { body, ...customOptions } = {}) => {
       ...headers,
       ...customOptions.headers,
     },
-    credentials: 'include',
+    credentials: 'include', // Important for sending session cookies
   };
 
   if (body) {
     config.body = isFormData ? body : JSON.stringify(body);
   }
 
+  // ✅ --- START OF THE FIX ---
+  // Create a full URL object to easily manage the endpoint and search params
+  const url = new URL(`${API_BASE_URL}${endpoint}`);
+
+  // If a 'params' object exists, add it to the URL's query string
+  if (params) {
+    // URLSearchParams correctly formats { key: 'value' } into "?key=value"
+    url.search = new URLSearchParams(params).toString();
+  }
+  // ✅ --- END OF THE FIX ---
+
   try {
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
+    // Use the newly constructed URL object in the fetch call
+    const response = await fetch(url.toString(), config);
 
     if (response.status === 401) {
       console.error("Unauthorized request. Session may have expired.");
+      // Optional: Redirect to login page
+      // window.location.href = '/login';
     }
     
+    // Handle 204 No Content response
+    if (response.status === 204) {
+        return null; 
+    }
+
+    // Check for other errors (like 400, 404, 500)
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({
-        message: response.statusText
+        message: response.statusText // Fallback if the error response isn't JSON
       }));
       throw new Error(`HTTP error! Status: ${response.status} - ${errorData.message || 'Unknown error'}`);
     }
 
-    if (response.status === 204) {
-        return null;
-    }
-
-    // THIS IS THE FIX: Check content type to handle files vs JSON
+    // Handle different response types (JSON for data, Blob for files)
     const contentType = response.headers.get("content-type");
-    if (contentType && contentType.indexOf("application/json") !== -1) {
+    if (contentType && contentType.includes("application/json")) {
         return response.json();
     } else {
-        return response.blob(); // Return the response as a blob for file downloads
+        return response.blob(); // For file downloads
     }
 
   } catch (error) {
     console.error(`API call to ${endpoint} failed:`, error);
-    throw error;
+    throw error; // Re-throw the error so it can be caught by the component
   }
 };
 
@@ -68,7 +84,4 @@ export const api = {
   post: (endpoint, body, options = {}) => apiService(endpoint, { ...options, method: 'POST', body }),
   put: (endpoint, body, options = {}) => apiService(endpoint, { ...options, method: 'PUT', body }),
   delete: (endpoint, options = {}) => apiService(endpoint, { ...options, method: 'DELETE' }),
-};
-export const getMapLayerOptions = (sessionId) => {
-  return api.get(`/map/get-layer-options/${sessionId}`);
 };

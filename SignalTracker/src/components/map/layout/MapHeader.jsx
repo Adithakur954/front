@@ -1,6 +1,7 @@
 import React from 'react';
-import { Autocomplete } from '@react-google-maps/api';
-import { Map, Pin } from 'lucide-react';
+import { Pin } from 'lucide-react';
+// 1. Import your new PlaceAutocomplete component
+import PlaceAutocomplete from '../PlaceAutocomplete'; // Adjust path if necessary
 
 const MapHeader = ({ map }) => {
     const goToMyLocation = () => {
@@ -16,16 +17,27 @@ const MapHeader = ({ map }) => {
         }
     };
 
+    // 2. Create a handler function to receive the selected place
+    const handlePlaceSelect = (place) => {
+        if (!map || !place.geometry?.location) {
+            console.error("Invalid place object or map not loaded.");
+            return;
+        }
+
+        const newCenter = {
+            lat: place.geometry.location.lat(),
+            lng: place.geometry.location.lng(),
+        };
+
+        map.panTo(newCenter);
+        map.setZoom(15);
+    };
+
     return (
         <div className="absolute top-4 left-1/2 -translate-x-1/2 w-full max-w-md z-20 flex items-center space-x-2">
             <div className="flex-grow">
-                <Autocomplete>
-                    <input
-                        type="text"
-                        placeholder="Search for a location..."
-                        className="w-full px-4 py-2 text-sm bg-white shadow-lg rounded-full border-2 border-transparent focus:border-blue-500 focus:ring-0 outline-none"
-                    />
-                </Autocomplete>
+                {/* 3. Replace the old Autocomplete with your new component */}
+                <PlaceAutocomplete onPlaceSelect={handlePlaceSelect} />
             </div>
             <button 
                 onClick={goToMyLocation}
