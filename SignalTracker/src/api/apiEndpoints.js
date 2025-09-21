@@ -124,6 +124,15 @@ export const homeApi = {
 
 /* ---------------- SETTING CONTROLLER ---------------- */
 export const settingApi = {
-    getThresholdSettings: () => api.get("/Setting/GetThresholdSettings"),
-    saveThreshold: (data) => api.post("/Setting/SaveThreshold", data),
+  
+  checkSession: () => api.get("/api/Setting/CheckSession"),
+
+  // Corrected path to match [HttpGet] on the controller root
+  getThresholdSettings: () => api.get("/api/Setting/GetThresholdSettings"),
+  
+  
+
+  // Corrected path to match [HttpPost("SaveThreshold")]
+  saveThreshold: (payload) => api.post("/api/Setting/SaveThreshold", payload),
 };
+

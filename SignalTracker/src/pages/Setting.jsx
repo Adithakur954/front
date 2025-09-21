@@ -3,128 +3,193 @@ import { toast } from 'react-toastify';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import Spinner from '../components/common/Spinner';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { X, Plus } from 'lucide-react';
+import { settingApi } from '../api/apiEndpoints'; // Assuming you have this API service
 
-const SettingsPage = () => {
-    const [settings, setSettings] = useState(null);
-    const [thresholds, setThresholds] = useState([]);
-    const [loading, setLoading] = useState(true);
+// --- 1. Reusable Form for a Single Threshold Parameter ---
+const ThresholdForm = ({ paramName, data, setData, onClose }) => {
 
-    useEffect(() => {
-        const fetchSettingsData = () => {
-            setLoading(true);
-            setTimeout(() => {
-                setSettings({
-                    profile: { name: 'Amit Sethi', email: 'amit.sethi@example.com' },
-                    notifications: { emailAlerts: true, pushNotifications: false },
-                    theme: { darkMode: localStorage.getItem("theme") === "dark" },
-                });
-                setThresholds([
-                    { id: 'rsrp', name: 'RSRP', range: '-140 to -105', min: -140, max: -105, color: '#FF0000', level: '' },
-                    { id: 'rsrq', name: 'RSRQ', range: '-140 to -105', min: -140, max: -105, color: '#FFFF00', level: '' },
-                    { id: 'sinr', name: 'SINR', range: '-105 to -95', min: -105, max: -95, color: '#000088', level: '' },
-                    { id: 'dl_thpt', name: 'DL_thpt', range: '-95 to -90', min: -95, max: -90, color: '#ADD8E6', level: '' },
-                    { id: 'ul_thpt', name: 'UL_thpt', range: '-90 to -85', min: -90, max: -85, color: '#000088', level: '' },
-                ]);
-                setLoading(false);
-            }, 500);
-        };
-        fetchSettingsData();
-    }, []);
-
-    const handleThresholdChange = (index, field, value) => {
-        const newThresholds = [...thresholds];
-        newThresholds[index][field] = value;
-        setThresholds(newThresholds);
+    const handleInputChange = (index, field, value) => {
+        const updatedData = [...data];
+        updatedData[index][field] = value;
+        setData(updatedData);
     };
 
-    const handleSaveChanges = () => {
-        setLoading(true);
-        setTimeout(() => {
-            toast.success("Settings saved successfully!");
-            setLoading(false);
-        }, 1000);
+    
+    const addRow = () => {
+        // Add a new blank row for the user to fill out
+        const newRow = { range: '', min: 0, max: 0, color: '#000000', level: '' };
+        setData([...data, newRow]);
     };
 
-    const handleThemeChange = (checked) => {
-        document.documentElement.classList.toggle("dark", checked);
-        localStorage.setItem("theme", checked ? "dark" : "light");
-        setSettings(prev => ({ ...prev, theme: { ...prev.theme, darkMode: checked } }));
+    const deleteRow = (index) => {
+        // Remove the row at the specified index
+        const updatedData = data.filter((_, i) => i !== index);
+        setData(updatedData);
     };
-
-    if (loading || !settings) return <Spinner />;
 
     return (
-        <div className="container mx-auto space-y-8">
-            <h1 className="text-3xl font-bold">Settings</h1>
+        <div className="mt-4 p-4 border rounded-lg bg-muted/40 dark:bg-slate-800">
+            <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-semibold">Edit {paramName} Thresholds</h3>
+                <Button variant="ghost" size="icon" onClick={onClose}>
+                    <X className="h-4 w-4" />
+                </Button>
+            </div>
+            
+            <div className="space-y-2">
+                {data.map((row, index) => (
+                    <div key={index} className="grid grid-cols-1 md:grid-cols-6 items-center gap-2 p-2 border rounded-md">
+                        <Input className="md:col-span-2" placeholder="Range Description (e.g., Poor, Good)" value={row.range || ''} onChange={e => handleInputChange(index, 'range', e.target.value)} />
+                        <Input placeholder="Min" type="number" value={row.min ?? 0} onChange={e => handleInputChange(index, 'min', e.target.valueAsNumber)} />
+                        <Input placeholder="Max" type="number" value={row.max ?? 0} onChange={e => handleInputChange(index, 'max', e.target.valueAsNumber)} />
+                        <Input type="color" value={row.color || '#000000'} onChange={e => handleInputChange(index, 'color', e.target.value)} className="p-1 h-10 w-full" />
+                        <Button variant="destructive" size="icon" onClick={() => deleteRow(index)}>
+                            <X className="h-4 w-4" />
+                        </Button>
+                    </div>
+                ))}
+            </div>
 
+            <Button onClick={addRow} className="mt-4">
+                <Plus className="h-4 w-4 mr-2" />
+                Add Row
+            </Button>
+        </div>
+    );
+};
+
+
+// --- 2. Main Settings Page Component ---
+const SettingsPage = () => {
+    const [thresholds, setThresholds] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [activeParam, setActiveParam] = useState(null); // e.g., 'rsrp', 'rsrq'
+
+    // This must match the keys in the backend's `thresholds` model
+    const PARAMETERS = {
+        rsrp: "RSRP",
+        rsrq: "RSRQ",
+        sinr: "SINR",
+        dl_thpt: "DL Throughput",
+        ul_thpt: "UL Throughput",
+        volte_call: "VoLTE Call",
+        lte_bler: "LTE BLER",
+        mos: "MOS",
+    };
+
+    // Fetch data from the backend when the component loads
+    useEffect(() => {
+        const fetchThresholds = async () => {
+            setLoading(true);
+            try {
+                const response = await settingApi.getThresholdSettings();
+                
+                if (response && response.Status === 1 && response.Data) {
+                    const data = response.Data;
+                    const parsedData = {};
+                    
+                    // Parse all the JSON strings from the backend into JS arrays
+                    for (const key in PARAMETERS) {
+                        const jsonString = data[`${key}_json`];
+                        let parsed = [];
+                        try {
+                            if (jsonString) {
+                                parsed = JSON.parse(jsonString);
+                            }
+                        } catch {
+                            console.error(`Failed to parse JSON for ${key}`);
+                            parsed = []; // Default to empty array on parsing error
+                        }
+                        parsedData[key] = Array.isArray(parsed) ? parsed : [parsed];
+                    }
+                    parsedData.id = data.id; // Keep the record ID for saving
+                    setThresholds(parsedData);
+                } else {
+                     toast.error(response?.Message || "Failed to load settings data.");
+                }
+            } catch (error) {
+                toast.error(`Failed to load threshold settings: ${error.message}`);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchThresholds();
+    }, []);
+    
+    // This function is passed to the form to update the main state
+    const updateParamData = (paramKey, newData) => {
+        setThresholds(prev => ({
+            ...prev,
+            [paramKey]: newData,
+        }));
+    };
+
+    const handleSaveChanges = async () => {
+        if (!thresholds) return;
+        setLoading(true);
+        try {
+            // Prepare the payload for the backend
+            const payload = { id: thresholds.id };
+            for (const key in PARAMETERS) {
+                // Convert the JS array back into a JSON string for each parameter
+                payload[`${key}_json`] = JSON.stringify(thresholds[key] || []);
+            }
+            
+           const response = await settingApi.saveThreshold(payload);
+
+
+            if (response && response.Status === 1) {
+                toast.success("Thresholds saved successfully!");
+                setActiveParam(null); // Close the form after saving
+            } else {
+                toast.error(response?.Message || "An unknown error occurred while saving.");
+            }
+        } catch (error) {
+            toast.error(`Save failed: ${error.message}`);
+        } finally {
+            setLoading(false);
+        }
+    };
+    
+    if (loading || !thresholds) return <Spinner />;
+
+    return (
+        <div className="container mx-auto space-y-8 p-4">
+            <h1 className="text-3xl font-bold">Settings</h1>
             <Card>
                 <CardHeader>
                     <CardTitle>Thresholds</CardTitle>
-                    <CardDescription>Define signal strength ranges and corresponding colors for map visualization.</CardDescription>
+                    <CardDescription>Select a parameter to configure its color levels and ranges for map visualization.</CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Parameter</TableHead>
-                                <TableHead>Range</TableHead>
-                                <TableHead>Min</TableHead>
-                                <TableHead>Max</TableHead>
-                                <TableHead>Color</TableHead>
-                                <TableHead>Level</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {thresholds.map((item, index) => (
-                                <TableRow key={item.id}>
-                                    <TableCell className="font-medium">{item.name}</TableCell>
-                                    <TableCell><Input value={item.range} onChange={e => handleThresholdChange(index, 'range', e.target.value)} /></TableCell>
-                                    <TableCell><Input type="number" value={item.min} onChange={e => handleThresholdChange(index, 'min', e.target.valueAsNumber)} /></TableCell>
-                                    <TableCell><Input type="number" value={item.max} onChange={e => handleThresholdChange(index, 'max', e.target.valueAsNumber)} /></TableCell>
-                                    <TableCell><Input type="color" value={item.color} onChange={e => handleThresholdChange(index, 'color', e.target.value)} className="p-1 h-8 w-14" /></TableCell>
-                                    <TableCell><Input value={item.level} onChange={e => handleThresholdChange(index, 'level', e.target.value)} /></TableCell>
-                                </TableRow>
-                            ))}
-                        </TableBody>
-                    </Table>
+                    <div className="flex flex-wrap gap-2">
+                        {Object.entries(PARAMETERS).map(([key, name]) => (
+                            <Button
+                                key={key}
+                                variant={activeParam === key ? "default" : "outline"}
+                                onClick={() => setActiveParam(key)}
+                            >
+                                {name}
+                            </Button>
+                        ))}
+                    </div>
+                    
+                    {activeParam && (
+                        <ThresholdForm
+                            paramName={PARAMETERS[activeParam]}
+                            data={thresholds[activeParam]}
+                            setData={(newData) => updateParamData(activeParam, newData)}
+                            onClose={() => setActiveParam(null)}
+                        />
+                    )}
                 </CardContent>
                 <CardFooter className="justify-end">
                     <Button onClick={handleSaveChanges} disabled={loading}>
-                        {loading ? 'Saving...' : 'Save Thresholds'}
+                        {loading ? 'Saving...' : 'Save All Thresholds'}
                     </Button>
                 </CardFooter>
-            </Card>
-
-            <Card>
-                <CardHeader>
-                    <CardTitle>Appearance</CardTitle>
-                    <CardDescription>Customize the look and feel.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                       <div className="flex items-center justify-between">
-                            <Label htmlFor="darkMode">Dark Mode</Label>
-                            <Switch
-                                id="darkMode"
-                                checked={settings.theme.darkMode}
-                                onCheckedChange={handleThemeChange}
-                            />
-                        </div>
-
-                        {/* --- NEW BUTTON ADDED HERE --- */}
-                        <div className="mt-4 flex items-center justify-between">
-                             
-                             <Button
-                                 onClick={() => handleThemeChange(!settings.theme.darkMode)}
-                                 variant="outline"
-                             >
-                                 {settings.theme.darkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-                             </Button>
-                        </div>
-                </CardContent>
             </Card>
         </div>
     );
