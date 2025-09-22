@@ -34,7 +34,7 @@ const MapHeader = ({ map }) => {
     };
 
     return (
-        <div className="absolute top-4 left-1/2 -translate-x-1/2 w-full max-w-md z-20 flex items-center space-x-2">
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 w-full max-w-md  flex items-center space-x-2">
             <div className="flex-grow">
                 {/* 3. Replace the old Autocomplete with your new component */}
                 <PlaceAutocomplete onPlaceSelect={handlePlaceSelect} />

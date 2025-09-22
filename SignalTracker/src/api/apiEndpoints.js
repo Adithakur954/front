@@ -1,7 +1,8 @@
+// src/api/apiEndpoints.js
+
 import { api } from "./apiService";
 
 export const authApi = {
-
   checkStatus: () => api.get("/api/auth/status"),
 };
 
@@ -25,84 +26,34 @@ export const adminApi = {
   changePassword: (data) => api.post("/Admin/ChangePassword", data),
   getSessions: () => api.get("/Admin/GetSessions"),
   getAllNetworkLogs: (params) => {
-   
     return api.get("/Admin/GetAllNetworkLogs", { params });
   },
   deleteSession: (sessionId) => {
-    return api.delete(`/Admin/DeleteSession?id=${sessionId}`);
-  },
-};
-
-/* ---------------- EXCEL UPLOAD CONTROLLER ---------------- */
-export const excelApi = {
-  uploadFile: (formData) => {
-    return api.post("/ExcelUpload/UploadExcelFile", formData, {
-      headers: {
-        "Content-Type": "multipart/form-data",
-      },
-    });
-  },
-
-  
-  processCsv: (formData) => {
-    return api.post("/api/processcsv/process", formData, {
-      headers: {
-        "Content-Type": "multipart/form-data",
-      },
-    });
-  },
-
-  getUploadedFiles: (fileType) => {
-    return api.get(`/ExcelUpload/GetUploadedExcelFiles?FileType=${fileType}`);
-  },
-
-  downloadTemplate: (fileType) => {
-    return api.get(`/ExcelUpload/DownloadExcel?FileType=${fileType}`, {
-      responseType: "blob",
-    });
-  },
-
-  getSessions: (fromDate, toDate) => {
-    return api.get(
-      `/ExcelUpload/GetSessions?fromDate=${fromDate.toISOString()}&toDate=${toDate.toISOString()}`
-    );
-  },
-  getDriveTestSessions: () => {
-    return api.get("/Admin/GetSessions");
-  },
+    return api.delete(`/Admin/DeleteSession/DeleteSession?id=${parseInt(sessionId, 10)}`);
+  }
 };
 
 /* ---------------- MAP VIEW CONTROLLER ---------------- */
 export const mapViewApi = {
-  
   signup: (user) => api.post("/MapView/user_signup", user),
   startSession: (data) => api.post("/MapView/start_session", data),
   endSession: (data) => api.post("/MapView/end_session", data),
   getNetworkLog: (params) => api.get("/api/MapView/GetNetworkLog", { params }),
-  getPredictionLog: (params) =>
-    api.get("/MapView/GetPredictionLog", { params }),
-  getProjectPolygons: (projectId) =>
-    api.get(`/MapView/GetProjectPolygons?projectId=${projectId}`),
+  getPredictionLog: (params) => api.get("/MapView/GetPredictionLog", { params }),
+  getProjectPolygons: (projectId) => api.get(`/MapView/GetProjectPolygons?projectId=${projectId}`),
   getProjects: () => api.get("/MapView/GetProjects"),
   uploadImage: (formData) => api.post("/MapView/UploadImage", formData),
   logNetwork: (data) => api.post("/MapView/log_networkAsync", data),
   getProviders: () => api.get("/MapView/GetProviders"),
   getTechnologies: () => api.get("/MapView/GetTechnologies"),
-
-  
-  getCellSites: (filters) =>
-    api.get("/MapView/GetCellSites", { params: filters }),
+  getCellSites: (filters) => api.get("/MapView/GetCellSites", { params: filters }),
   getServingCells: (params) => api.get("/MapView/GetServingCells", { params }),
-  getCrowdsourceData: (filters) =>
-    api.get("/MapView/GetCrowdsourceData", { params: filters }),
-  getElevationProfile: (points) =>
-    api.post("/MapView/GetElevationProfile", points),
-  getNetworkIssues: (filters) =>
-    api.get("/MapView/GetNetworkIssues", { params: filters }),
+  getCrowdsourceData: (filters) => api.get("/MapView/GetCrowdsourceData", { params: filters }),
+  getElevationProfile: (points) => api.post("/MapView/GetElevationProfile", points),
+  getNetworkIssues: (filters) => api.get("/MapView/GetNetworkIssues", { params: filters }),
   createTask: (taskData) => api.post("/MapView/CreateTask", taskData),
   getTasks: (filters) => api.get("/MapView/GetTasks", { params: filters }),
-  updateTask: (taskId, updates) =>
-    api.put(`/MapView/UpdateTask/${taskId}`, updates),
+  updateTask: (taskId, updates) => api.put(`/MapView/UpdateTask/${taskId}`, updates),
 };
 
 /* ---------------- HOME CONTROLLER ---------------- */
@@ -119,8 +70,29 @@ export const homeApi = {
 /* ---------------- SETTING CONTROLLER ---------------- */
 export const settingApi = {
   checkSession: () => api.get("/api/Setting/CheckSession"),
-
   getThresholdSettings: () => api.get("/api/Setting/GetThresholdSettings"),
-
   saveThreshold: (payload) => api.post("/api/Setting/SaveThreshold", payload),
+};
+
+/* ---------------- EXCEL UPLOAD CONTROLLER ---------------- */
+export const excelApi = {
+  
+  uploadFile: (formData) => api.post('/ExcelUpload/UploadExcelFile', formData),
+
+  
+  // getUploadedFiles: (type) => api.get(`/api/excel/files/${type}`),
+
+  
+  downloadTemplate: (type) => api.get(`/api/excel/template/${type}`, {
+    responseType: 'blob'
+  }),
+
+  getUploadedFiles: (type) => api.get(`/ExcelUpload/GetUploadedExcelFiles?FileType=${type}`),
+
+  getSessions: (fromDate, toDate) => api.get('/api/excel/sessions', {
+    params: {
+      fromDate: fromDate.toISOString(),
+      toDate: toDate.toISOString()
+    }
+  }),
 };

@@ -1,3 +1,5 @@
+// src/pages/Dashboard.jsx
+
 import React, { useEffect, useState } from "react";
 import { toast } from "react-toastify";
 import { adminApi } from "../api/apiEndpoints";
@@ -9,10 +11,13 @@ import {
   Tooltip, Legend, LabelList
 } from "recharts";
 
-import { Users, Car, Waypoints, FileText, Wifi } from 'lucide-react';
+import { Users, Car, Waypoints, FileText, Wifi, BarChart2, RadioTower } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { MoreVertical } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+
+
+const CHART_COLORS = ['#3b82f6', '#10b981', '#f97316', '#8b5cf6', '#ec4899', '#f59e0b', '#06b6d4', '#ef4444'];
 
 const getRSRPPointColor = (rsrp) => {
   if (rsrp < -115) return '#FF0000'; // Red
@@ -23,6 +28,7 @@ const getRSRPPointColor = (rsrp) => {
   if (rsrp <= -75) return '#90EE90'; // Light Green
   return '#006400'; // Dark Green
 };
+
 const operatorMappings = {
   'Jio True5G': 'JIO 5G',
   'JIO 4G': 'JIO 4G',
@@ -33,74 +39,33 @@ const operatorMappings = {
   '//////': null,
   '404011': null,
 };
-function mergeAndCleanAverageData(rawData, operatorKey, valueKeys, countKey) {
-  if (!Array.isArray(rawData)) return [];
 
-  // This will store our aggregated data before the final calculation.
-  // Structure: { 'Jio': { name: 'Jio', totalValue: { AvgRSRP: -90100, ... }, totalCount: 1010, groupCount: 2 } }
-  const aggregated = rawData.reduce((acc, item) => {
-    const messyName = item[operatorKey];
-    const cleanName = operatorMappings[messyName];
-
-    if (cleanName !== null && cleanName !== undefined) {
-      // Initialize the entry if it's the first time we see this clean name.
-      if (!acc[cleanName]) {
-        acc[cleanName] = { 
-          name: cleanName, 
-          totalValue: {}, // Will store sum of (value * count)
-          totalCount: 0,   // Will store sum of counts
-          groupCount: 0    // How many groups we've merged
-        };
-        valueKeys.forEach(key => acc[cleanName].totalValue[key] = 0);
-      }
-
-      const sampleCount = item[countKey] || 1; // Default to 1 for simple average fallback
-      
-      // Add the current item's data to the accumulator.
-      valueKeys.forEach(key => {
-        acc[cleanName].totalValue[key] += (item[key] || 0) * sampleCount;
-      });
-      acc[cleanName].totalCount += sampleCount;
-      acc[cleanName].groupCount += 1;
-    }
-    return acc;
-  }, {});
-
-  // Now, calculate the final averages for each clean operator.
-  return Object.values(aggregated).map(item => {
-    const finalItem = { [operatorKey]: item.name };
-    
-    valueKeys.forEach(key => {
-        // If totalCount is greater than groupCount, it means we had real sample counts.
-        // This is a heuristic to decide between weighted and simple average.
-        if (item.totalCount > item.groupCount) {
-             // Weighted Average
-            finalItem[key] = item.totalValue[key] / item.totalCount;
-        } else {
-            // Simple Average Fallback (divide by number of groups merged)
-            finalItem[key] = item.totalValue[key] / item.groupCount;
-        }
-    });
-
-    return finalItem;
-  });
-}
-
-function mergeAndCleanOperatorData(rawData) {
+function cleanAndMergeData(rawData, nameKey, valueKey, countKey) {
     if (!Array.isArray(rawData)) return [];
+
     const aggregated = rawData.reduce((acc, item) => {
-        const cleanName = operatorMappings[item.name];
-        if (cleanName !== null && cleanName !== undefined) {
-            if (acc[cleanName]) {
-                acc[cleanName].value += item.value;
-            } else {
-                acc[cleanName] = { name: cleanName, value: item.value };
-            }
+        const name = operatorMappings[item[nameKey]] ?? item[nameKey];
+        if (!name) return acc;
+
+        if (!acc[name]) {
+            acc[name] = { name: name, totalValue: 0, totalCount: 0 };
         }
+        
+        const value = item[valueKey] || 0;
+        const count = item[countKey] || 1;
+
+        acc[name].totalValue += value * count;
+        acc[name].totalCount += count;
         return acc;
     }, {});
-    return Object.values(aggregated);
+
+    return Object.values(aggregated).map(item => ({
+        name: item.name,
+        value: item.totalCount > 0 ? item.totalValue / item.totalCount : 0,
+    }));
 }
+
+
 function normalizePayload(resp) {
   const payload = resp?.Data ?? resp?.data ?? resp ?? {};
   if (typeof payload === "string") {
@@ -111,41 +76,30 @@ function normalizePayload(resp) {
     const n = Number(v);
     return Number.isFinite(n) ? n : 0;
   };
-  const normalizeArray = (arr, nameKeys = ["name", "operator", "Make", "band", "month", "network"], valueKeys = ["value", "count", "Avg", "AvgRSRP"]) => {
-    if (!Array.isArray(arr)) return [];
-    return arr.map(item => {
-      let name = null;
-      for (const k of nameKeys) {
-        if (item[k] !== undefined && item[k] !== null) { name = item[k]; break; }
-      }
-      let val = null;
-      for (const k of valueKeys) {
-        if (item[k] !== undefined && item[k] !== null) { val = item[k]; break; }
-      }
-      return { ...item, name: String(name ?? ""), value: toNumber(val ?? 0) };
-    });
+
+  const normalizeArray = (arr, nameKeys = ["name"], valueKeys = ["value"]) => {
+      if (!Array.isArray(arr)) return [];
+      return arr.map(item => {
+          const name = nameKeys.reduce((acc, key) => acc || item[key], null);
+          const value = valueKeys.reduce((acc, key) => acc || item[key], null);
+          return { ...item, name: String(name ?? ""), value: toNumber(value ?? 0) };
+      });
   };
-  const cleanOperatorSamples = mergeAndCleanOperatorData(payload.operatorWiseSamples);
-  const cleanAvgRsrpData = mergeAndCleanAverageData(
-    payload.avgRsrpSinrPerOperator_bar, 
-    'Operator',                       
-    ['AvgRSRP', 'AvgSINR'],          
-    'sampleCount'                     
-  );
+
+  const cleanOperatorSamples = cleanAndMergeData(payload.operatorWiseSamples, 'name', 'value', 'count');
+
   return {
     totalUsers: payload.totalUsers ?? 0,
-    totalActiveDevices: payload.activeDevices ?? 0,
     totalSessions: payload.totalSessions ?? 0,
-    totalSignals: payload.totalSignals ?? 0,
     totalOnlineSessions: payload.totalOnlineSessions ?? 0,
-    totalOperators: cleanOperatorSamples.length ?? 0,
     totalSamples: payload.totalSamples ?? payload.totalLogPoints ?? 0,
-    totalbands: payload.bandDistribution_pie.length ?? 0,
-    totalTechnologies: payload.networkTypeDistribution_horizontal_bar.length ?? 0,
+    totalOperators: cleanOperatorSamples.length ?? 0,
+    totalTechnologies: payload.networkTypeDistribution_horizontal_bar?.length ?? 0,
+    totalBands: payload.bandDistribution_pie?.length ?? 0,
     monthlySampleCounts: normalizeArray(payload.monthlySampleCounts, ["month"], ["count"]),
-    operatorWiseSamples: normalizeArray(cleanOperatorSamples, ["name"], ["value"]),
+    operatorWiseSamples: cleanOperatorSamples,
     networkTypeDistribution: normalizeArray(payload.networkTypeDistribution_horizontal_bar, ["network"], ["count"]),
-    avgRsrpPerOperator: normalizeArray(cleanAvgRsrpData, ["Operator"], ["AvgRSRP"]),
+    avgRsrpPerOperator: cleanAndMergeData(payload.avgRsrpSinrPerOperator_bar, 'Operator', 'AvgRSRP', 'sampleCount'),
     bandDistribution: normalizeArray(payload.bandDistribution_pie, ["band"], ["count"]),
     handsetDistribution: normalizeArray(payload.handsetWiseAvg_bar, ["Make"], ["Avg"]),
   };
@@ -180,11 +134,22 @@ const DashboardChartCard = ({ title, children, dataset }) => (
   </Card>
 );
 
+const StatCard = ({ title, value, icon: Icon, color }) => (
+    <Card className={`${color} text-white border-none`}>
+        <CardContent className="p-4 flex items-center gap-4">
+            <Icon className="h-8 w-8" />
+            <div className="flex-1">
+                <p className="text-3xl font-bold">{value.toLocaleString()}</p>
+                <p className="text-sm opacity-80">{title}</p>
+            </div>
+        </CardContent>
+    </Card>
+);
+
 
 const DashboardPage = () => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
-  const CHART_COLORS = ['#3b82f6', '#10b981', '#f97316', '#8b5cf6', '#ec4899', '#f59e0b', '#06b6d4', '#ef4444'];
 
   useEffect(() => {
     const fetchData = async () => {
@@ -194,13 +159,11 @@ const DashboardPage = () => {
           adminApi.getReactDashboardData(),
           adminApi.getDashboardGraphData()
         ]);
-        console.log("📊 Raw Stats Response from API:", statsResp);
-      console.log("📈 Raw Graphs Response from API:", graphsResp);
-      // You can also log them together in one object for easy comparison
-      console.log("Combined Raw Responses:", { statsResp, graphsResp });;
+        
         const mergedPayload = { ...(statsResp?.Data ?? {}), ...(graphsResp?.Data ?? {}) };
-        const normalized = normalizePayload(mergedPayload);
+        const normalized = normalizePayload({ Data: mergedPayload }); // Wrap in Data for consistency
         setData(normalized);
+
       } catch (err) {
         console.error("Dashboard fetch error:", err);
         toast.error(`Failed to load dashboard: ${err.message ?? 'Unknown error'}`);
@@ -215,22 +178,22 @@ const DashboardPage = () => {
   if (loading) return <Spinner />;
   if (!data) return <div className="p-6 text-red-500">Failed to load dashboard data.</div>;
 
+  const stats = [
+      { title: "Users", value: data.totalUsers, icon: Users, color: "bg-purple-600" },
+      { title: "Total Drive Sessions", value: data.totalSessions, icon: Car, color: "bg-teal-600" },
+      { title: "Online Sessions", value: data.totalOnlineSessions, icon: Waypoints, color: "bg-orange-600" },
+      { title: "Total Samples", value: data.totalSamples, icon: FileText, color: "bg-amber-600" },
+      { title: "Operators", value: data.totalOperators, icon: Wifi, color: "bg-sky-600" },
+      { title: "Technologies", value: data.totalTechnologies, icon: BarChart2, color: "bg-pink-600" },
+      { title: "Total Bands", value: data.totalBands, icon: RadioTower, color: "bg-indigo-600" },
+  ];
+
   return (
     <div className="h-full overflow-y-auto space-y-6 bg-slate-900 text-slate-100 p-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
-        <Card className="bg-purple-600 text-white border-none"><CardContent className="p-4 flex items-center gap-4"><Users className="h-8 w-8" /><div className="flex-1"><p className="text-3xl font-bold">{data.totalUsers}</p><p className="text-sm opacity-80">Users</p></div></CardContent></Card>
-        <Card className="bg-teal-600 text-white border-none"><CardContent className="p-4 flex items-center gap-4"><Car className="h-8 w-8" /><div className="flex-1"><p className="text-3xl font-bold">{data.totalSessions}</p><p className="text-sm opacity-80">Total Drive Sessions</p></div></CardContent></Card>
-        <Card className="bg-orange-600 text-white border-none"><CardContent className="p-4 flex items-center gap-4"><Waypoints className="h-8 w-8" /><div className="flex-1"><p className="text-3xl font-bold">{data.totalOnlineSessions}</p><p className="text-sm opacity-80">Online Sessions</p></div></CardContent></Card>
-        <Card className="bg-amber-600 text-white border-none"><CardContent className="p-4 flex items-center gap-4"><FileText className="h-8 w-8" /><div className="flex-1"><p className="text-3xl font-bold">{data.totalSamples.toLocaleString()}</p><p className="text-sm opacity-80">Total Samples</p></div></CardContent></Card>
-        <Card className="bg-sky-600 text-white border-none"><CardContent className="p-4 flex items-center gap-4"><Wifi className="h-8 w-8" /><div className="flex-1"><p className="text-3xl font-bold">{data.totalOperators}</p><p className="text-sm opacity-80">Operators</p></div></CardContent></Card>
-        <Card className="bg-sky-600 text-white border-none"><CardContent className="p-4 flex items-center gap-4"><Wifi className="h-8 w-8" /><div className="flex-1"><p className="text-3xl font-bold">{data.totalTechnologies}</p><p className="text-sm opacity-80">Technologies</p></div></CardContent></Card>
-        <Card className="bg-sky-600 text-white border-none"><CardContent className="p-4 flex items-center gap-4"><Wifi className="h-8 w-8" /><div className="flex-1"><p className="text-3xl font-bold">{data.totalbands}</p><p className="text-sm opacity-80">Total Bands</p></div></CardContent></Card>
-        
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-6">
+          {stats.map(stat => <StatCard key={stat.title} {...stat} />)}
       </div>
-
       
-      
-
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <DashboardChartCard title="Monthly Samples/Session" dataset={data.monthlySampleCounts}>
           <ResponsiveContainer width="100%" height="100%">
@@ -254,7 +217,6 @@ const DashboardPage = () => {
               <YAxis dataKey="name" type="category" width={80} tick={{ fill: '#a0aec0' }} fontSize={12} />
               <Tooltip cursor={{fill: 'rgba(128, 128, 128, 0.1)'}} contentStyle={{ backgroundColor: '#1a202c', borderColor: '#2d3748', color: '#e2e8f0' }} />
               <Bar dataKey="value" fill="#f63bf0" name="Samples" radius={[0, 4, 4, 0]}>
-                {/* ✅ BIGGER, BOLDER LABELS FOR VALUES */}
                 <LabelList dataKey="value" position="right" style={{ fill: '#e2e8f0', fontSize: '14px', fontWeight: 'bold' }} />
                 {data.operatorWiseSamples.map((entry, index) => (
                   <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
@@ -272,7 +234,6 @@ const DashboardPage = () => {
               <YAxis dataKey="name" type="category" width={80} tick={{ fill: '#a0aec0' }} fontSize={12} />
               <Tooltip cursor={{fill: 'rgba(128, 128, 128, 0.1)'}} contentStyle={{ backgroundColor: '#1a202c', borderColor: '#2d3748', color: '#e2e8f0' }} />
               <Bar dataKey="value" fill="#10b981" radius={[0, 4, 4, 0]}>
-                 {/* ✅ BIGGER, BOLDER LABELS FOR VALUES */}
                 <LabelList dataKey="value" position="right" style={{ fill: '#e2e8f0', fontSize: '14px', fontWeight: 'bold' }} />
               </Bar>
             </BarChart>
@@ -304,7 +265,6 @@ const DashboardPage = () => {
               <YAxis dataKey="name" type="category" width={80} tick={{ fill: '#a0aec0' }} fontSize={12} />
               <Tooltip cursor={{fill: 'rgba(128, 128, 128, 0.1)'}} contentStyle={{ backgroundColor: '#1a202c', borderColor: '#2d3748', color: '#e2e8f0' }} />
               <Bar dataKey="value" fill="#e6f02b" name="Count" radius={[0, 4, 4, 0]}>
-                 {/* ✅ BIGGER, BOLDER LABELS FOR VALUES */}
                 <LabelList dataKey="value" position="right" style={{ fill: '#e2e8f0', fontSize: '14px', fontWeight: 'bold' }} />
                 {data.bandDistribution.map((entry, index) => (
                   <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />

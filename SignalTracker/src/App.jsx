@@ -4,7 +4,7 @@ import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
 import AuthProvider, { useAuth } from './context/AuthContext';
-import { ThemeProvider, useTheme } from './context/ThemeContext'; // Import the new provider and hook
+
 
 // --- Page Imports ---
 import LoginPage from './pages/Login';
@@ -40,20 +40,20 @@ const NotFoundPage = () => (
 );
 
 // A new component to make the ToastContainer theme-aware
-const ThemedToastContainer = () => {
-    const { theme } = useTheme();
-    return (
-        <ToastContainer
-            position="top-right"
-            autoClose={3000}
-            // The theme now dynamically updates when the context changes
-            theme={theme === 'system' 
-                ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') 
-                : theme
-            }
-        />
-    );
-};
+// const ThemedToastContainer = () => {
+//     const { theme } = useTheme();
+//     return (
+//         <ToastContainer
+//             position="top-right"
+//             autoClose={3000}
+//             // The theme now dynamically updates when the context changes
+//             theme={theme === 'system' 
+//                 ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') 
+//                 : theme
+//             }
+//         />
+//     );
+// };
 
 function App() {
     // The old useEffect for theme has been removed. The ThemeProvider now handles everything.
@@ -61,8 +61,8 @@ function App() {
         <Router>
             <AuthProvider>
                 {/* Wrap the entire app in the ThemeProvider */}
-                <ThemeProvider storageKey="app-theme" defaultTheme="dark">
-                    <ThemedToastContainer />
+                
+                    
                     <Routes>
                         <Route path="/" element={<PublicRoute><LoginPage /></PublicRoute>} />
                         
@@ -77,7 +77,7 @@ function App() {
 
                         <Route path="*" element={<NotFoundPage />} />
                     </Routes>
-                </ThemeProvider>
+                
             </AuthProvider>
         </Router>
     );

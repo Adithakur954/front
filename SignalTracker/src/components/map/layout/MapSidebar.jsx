@@ -1,4 +1,4 @@
-
+// src/components/map/layout/MapSidebar.jsx
 
 import React, { useState, useMemo } from 'react';
 import { Button } from "@/components/ui/button";
@@ -6,14 +6,14 @@ import { DatePicker } from "@/components/ui/date-picker";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Filter, Search, XCircle } from 'lucide-react';
-
+import { Filter, XCircle } from 'lucide-react';
 
 const getOneMonthAgo = () => {
   const date = new Date();
   date.setMonth(date.getMonth() - 1);
   return date;
 };
+
 const MapSidebar = ({sessions, onApplyFilters, onClearFilters }) => {
   const [filters, setFilters] = useState({
     startDate: getOneMonthAgo(),
@@ -22,12 +22,9 @@ const MapSidebar = ({sessions, onApplyFilters, onClearFilters }) => {
     sessionId: '',
   });
 
-  
-
-const sessionsInDateRange = useMemo(() => {
+  const sessionsInDateRange = useMemo(() => {
     if (!sessions || sessions.length === 0) return [];
     
-    // Set time to the very start of the start day and very end of the end day
     const start = filters.startDate ? new Date(filters.startDate).setHours(0, 0, 0, 0) : null;
     const end = filters.endDate ? new Date(filters.endDate).setHours(23, 59, 59, 999) : null;
 
@@ -38,10 +35,8 @@ const sessionsInDateRange = useMemo(() => {
       return true;
     });
   }, [sessions, filters.startDate, filters.endDate]);
- 
- 
+  
   const handleFilterChange = (key, value) => {
-    // When the date changes, clear the selected session ID
     if (key === 'startDate' || key === 'endDate') {
         setFilters(prev => ({ ...prev, [key]: value, sessionId: '' }));
     } else {
@@ -50,7 +45,6 @@ const sessionsInDateRange = useMemo(() => {
   };
 
   const handleApply = () => {
-    // Create a clean object with only the values that are set
     const activeFilters = {};
     if (filters.sessionId) {
       activeFilters.session_id = filters.sessionId;
@@ -78,7 +72,7 @@ const sessionsInDateRange = useMemo(() => {
   };
 
   return (
-    <div className="absolute bottom-4  h-[calc(80vh-2rem)] w-80 bg-white dark:bg-slate-950 shadow-lg rounded-lg border z-10 flex flex-col">
+    <div className="absolute top-4 left-4 h-[calc(80vh-2rem)] w-80 bg-white dark:bg-slate-950 dark:text-white rounded-lg border z-10 flex flex-col shadow-lg">
       <div className="p-4 border-b">
         <h2 className="text-lg font-bold">Map Filters</h2>
       </div>
@@ -102,36 +96,36 @@ const sessionsInDateRange = useMemo(() => {
           <DatePicker date={filters.endDate} setDate={(d) => handleFilterChange('endDate', d)} />
         </div>
         <div>
-           <div>
-          <Label>Session (within date range)</Label>
-          <Select value={filters.sessionId} onValueChange={(v) => handleFilterChange('sessionId', v)}>
-            <SelectTrigger>
-              <SelectValue placeholder="Select a session..." />
-            </SelectTrigger>
-            <SelectContent>
-              {sessionsInDateRange.length > 0 ? (
-                sessionsInDateRange.map(session => (
-                  <SelectItem key={session.id} value={session.id.toString()}>
-                    {`ID: ${session.id} (${session.CreatedBy || 'N/A'})`}
-                  </SelectItem>
-                ))
-              ) : (
-                <SelectItem value="none" disabled>No sessions in date range</SelectItem>
-              )}
-            </SelectContent>
-          </Select>
+            <Label>Session (within date range)</Label>
+            <Select value={filters.sessionId} onValueChange={(v) => handleFilterChange('sessionId', v)}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select a session..." />
+              </SelectTrigger>
+              <SelectContent>
+                {sessionsInDateRange.length > 0 ? (
+                  sessionsInDateRange.map(session => (
+                    <SelectItem key={session.id} value={session.id.toString()}>
+                      {`ID: ${session.id} (${session.CreatedBy || 'N/A'})`}
+                    </SelectItem>
+                  ))
+                ) : (
+                  <SelectItem value="none" disabled>No sessions in date range</SelectItem>
+                )}
+              </SelectContent>
+            </Select>
         </div>
-          <Label>Network Type</Label>
-          <Select value={filters.networkType} onValueChange={(v) => handleFilterChange('networkType', v)}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="ALL">ALL</SelectItem>
-              <SelectItem value="2G">2G</SelectItem>
-              <SelectItem value="3G">3G</SelectItem>
-              <SelectItem value="4G">4G</SelectItem>
-              <SelectItem value="5G">5G</SelectItem>
-            </SelectContent>
-          </Select>
+         <div>
+            <Label>Network Type</Label>
+            <Select value={filters.networkType} onValueChange={(v) => handleFilterChange('networkType', v)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">ALL</SelectItem>
+                <SelectItem value="2G">2G</SelectItem>
+                <SelectItem value="3G">3G</SelectItem>
+                <SelectItem value="4G">4G</SelectItem>
+                <SelectItem value="5G">5G</SelectItem>
+              </SelectContent>
+            </Select>
         </div>
       </div>
 

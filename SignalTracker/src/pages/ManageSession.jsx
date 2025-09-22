@@ -1,3 +1,5 @@
+// src/pages/ManageSession.jsx
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { adminApi } from '../api/apiEndpoints';
 import { toast } from 'react-toastify';
@@ -11,18 +13,19 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Trash2, Map } from 'lucide-react'; // Import the Map icon
-import { useNavigate } from 'react-router-dom'; // Import useNavigate
+import { Trash2, Map } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 const ManageSessionsPage = () => {
     const [sessions, setSessions] = useState([]);
     const [loading, setLoading] = useState(true);
-    const navigate = useNavigate(); // Hook for navigation
+    const navigate = useNavigate();
 
     const fetchSessions = useCallback(async () => {
         try {
             setLoading(true);
             const data = await adminApi.getSessions();
+            console.log("Fetched sessions:", data);
             setSessions(Array.isArray(data) ? data : []);
         } catch (error) {
             toast.error(`Failed to fetch sessions: ${error.message}`);
@@ -38,7 +41,6 @@ const ManageSessionsPage = () => {
     const handleDelete = async (sessionId) => {
         if (window.confirm('Are you sure you want to delete this session? This will also remove all associated log data.')) {
             try {
-                // Your existing delete logic here...
                 await adminApi.deleteSession(sessionId);
                 toast.success('Session deleted successfully');
                 fetchSessions();
@@ -48,7 +50,6 @@ const ManageSessionsPage = () => {
         }
     };
 
-    // --- NEW FUNCTION ---
     const handleViewOnMap = (sessionId) => {
         navigate(`/map-view?sessionId=${sessionId}`);
     };
@@ -84,7 +85,6 @@ const ManageSessionsPage = () => {
                                 <TableCell>{formatDate(session.start_time)}</TableCell>
                                 <TableCell>{formatDate(session.end_time)}</TableCell>
                                 <TableCell className="text-right">
-                                    {/* --- NEW BUTTON --- */}
                                     <Button variant="outline" size="sm" onClick={() => handleViewOnMap(session.id)}>
                                         <Map className="h-4 w-4 mr-2" />
                                         View on Map
