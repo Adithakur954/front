@@ -35,25 +35,46 @@ export const adminApi = {
 
 /* ---------------- MAP VIEW CONTROLLER ---------------- */
 export const mapViewApi = {
-  signup: (user) => api.post("/MapView/user_signup", user),
-  startSession: (data) => api.post("/MapView/start_session", data),
-  endSession: (data) => api.post("/MapView/end_session", data),
-  getNetworkLog: (params) => api.get("/api/MapView/GetNetworkLog", { params }),
-  getPredictionLog: (params) => api.get("/MapView/GetPredictionLog", { params }),
-  getProjectPolygons: (projectId) => api.get(`/MapView/GetProjectPolygons?projectId=${projectId}`),
-  getProjects: () => api.get("/MapView/GetProjects"),
-  uploadImage: (formData) => api.post("/MapView/UploadImage", formData),
-  logNetwork: (data) => api.post("/MapView/log_networkAsync", data),
-  getProviders: () => api.get("/MapView/GetProviders"),
-  getTechnologies: () => api.get("/MapView/GetTechnologies"),
-  getCellSites: (filters) => api.get("/MapView/GetCellSites", { params: filters }),
-  getServingCells: (params) => api.get("/MapView/GetServingCells", { params }),
-  getCrowdsourceData: (filters) => api.get("/MapView/GetCrowdsourceData", { params: filters }),
-  getElevationProfile: (points) => api.post("/MapView/GetElevationProfile", points),
-  getNetworkIssues: (filters) => api.get("/MapView/GetNetworkIssues", { params: filters }),
-  createTask: (taskData) => api.post("/MapView/CreateTask", taskData),
-  getTasks: (filters) => api.get("/MapView/GetTasks", { params: filters }),
-  updateTask: (taskId, updates) => api.put(`/MapView/UpdateTask/${taskId}`, updates),
+    
+    signup: (user) => api.post("/api/MapView/user_signup", user),
+
+    getLogsByDateRange: (filters) => api.get("/api/MapView/GetLogsByDateRange", { params: filters }),
+
+    
+    startSession: (data) => api.post("/api/MapView/start_session", data),
+
+   
+    endSession: (data) => api.post("/api/MapView/end_session", data),
+
+   
+    getNetworkLog: (params) => api.get("/api/MapView/GetNetworkLog", { params }),
+
+   
+    getPredictionLog: (params) => api.get("/api/MapView/GetPredictionLog", { params }),
+
+    
+    getProjectPolygons: (projectId) => api.get(`/api/MapView/GetProjectPolygons?projectId=${projectId}`),
+
+    
+    getProjects: () => api.get("/api/MapView/GetProjects"),
+
+    // Matches: [HttpPost] UploadImage - Expects FormData
+    uploadImage: (formData) => api.post("/api/MapView/UploadImage", formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+    }),
+
+    // Matches: [HttpPost] log_networkAsync
+    logNetwork: (data) => api.post("/api/MapView/log_networkAsync", data),
+
+    // Matches: [HttpGet] GetProviders
+    getProviders: () => api.get("/api/MapView/GetProviders"),
+
+    // Matches: [HttpGet] GetTechnologies
+    getTechnologies: () => api.get("/api/MapView/GetTechnologies"),
+
+    // Note: The following endpoints were removed as they do not exist in the provided MapViewController.cs
+    // - getCellSites, getServingCells, getCrowdsourceData, getElevationProfile,
+    // - getNetworkIssues, createTask, getTasks, updateTask
 };
 
 /* ---------------- HOME CONTROLLER ---------------- */
@@ -83,9 +104,14 @@ export const excelApi = {
   // getUploadedFiles: (type) => api.get(`/api/excel/files/${type}`),
 
   
-  downloadTemplate: (type) => api.get(`/api/excel/template/${type}`, {
-    responseType: 'blob'
-  }),
+  downloadTemplate: (fileType) => {
+    
+    return api.get('/ExcelUpload/DownloadExcel', {
+      params: {
+        FileType: fileType
+      }
+    });
+  },
 
   getUploadedFiles: (type) => api.get(`/ExcelUpload/GetUploadedExcelFiles?FileType=${type}`),
 

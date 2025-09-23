@@ -1,17 +1,16 @@
 // src/pages/MapView.jsx
 
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
-import { GoogleMap, useJsApiLoader, Marker, DrawingManager } from '@react-google-maps/api';
+import { GoogleMap, useJsApiLoader, Marker, DrawingManager, MarkerClusterer } from '@react-google-maps/api';
 import { toast } from 'react-toastify';
 import { adminApi, mapViewApi } from '../api/apiEndpoints';
 
 import MapSidebar from '../components/map/layout/MapSidebar';
-import SessionDetailPanel from '../components/map/layout/SessionDetail'; // Corrected import path
+import SessionDetailPanel from '../components/map/layout/SessionDetail';
 import MapHeader from '../components/map/layout/MapHeader';
-import { Legend } from '../components/map/Legend';
 import Spinner from '../components/common/Spinner';
 
-const GOOGLE_MAPS_LIBRARIES = ["places", "drawing", "visualization", "geometry"];
+const GOOGLE_MAPS_LIBRARIES = ["places", "drawing", "visualization", "geometry", "marker"];
 
 const mapContainerStyle = {
   height: "100%",
@@ -36,6 +35,16 @@ const MapView = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isPanelLoading, setIsPanelLoading] = useState(false);
   const [polygons, setPolygons] = useState([]);
+  const [sessionLogs, setSessionLogs] = useState([]); // grouped logs by session
+
+  const fitMapToMarkers = (mapInstance, markers, logs) => {
+  const bounds = new window.google.maps.LatLngBounds();
+
+  markers.forEach(s => bounds.extend({ lat: parseFloat(s.start_lat), lng: parseFloat(s.start_lon) }));
+  logs.forEach(group => group.logs.forEach(l => bounds.extend({ lat: parseFloat(l.lat), lng: parseFloat(l.lon) })));
+
+  if (!bounds.isEmpty()) mapInstance.fitBounds(bounds);
+};
 
   const fetchAllSessions = useCallback(async () => {
     setIsLoading(true);
@@ -58,9 +67,9 @@ const MapView = () => {
       fetchAllSessions();
     }
   }, [isLoaded, fetchAllSessions]);
-  
+
   const handleMarkerClick = async (session) => {
-    handleClearPolygons(); // Clear any existing polygons when a marker is clicked
+    handleClearPolygons();
     setSelectedSessionData({ session, logs: [] });
     setIsPanelLoading(true);
     try {
@@ -78,32 +87,44 @@ const MapView = () => {
     setIsLoading(true);
     setSelectedSessionData(null);
     handleClearPolygons();
+    setSessionLogs([]);
+    console.log("Applying filters:", filters);
     try {
-      if (filters.session_id) {
-        const singleSession = allSessions.filter(s => s.id.toString() === filters.session_id);
-        setDisplayedMarkers(singleSession);
-        toast.info(`${singleSession.length} session found.`);
-        return;
-      }
       const apiParams = {
-        NetworkType: filters.NetworkType,
-        StartDate: filters.StartDate,
-        EndDate: filters.EndDate,
-        limit: 50000,
+        StartDate: filters.startDate.toISOString().split('T')[0],
+        EndDate: filters.endDate.toISOString().split('T')[0],
       };
-      const matchingLogs = await adminApi.getAllNetworkLogs(apiParams);
-      if (!matchingLogs || matchingLogs.length === 0) {
-        setDisplayedMarkers([]);
+
+      const data = await mapViewApi.getLogsByDateRange(apiParams);
+      console.log("Logs by date range:", data);
+
+      if (data && data.length > 0) {
+         setDisplayedMarkers([]);
+        
+
+         
+        const grouped = data.reduce((acc, log) => {
+          const id = log.session_id;
+          if (!acc[id]) acc[id] = [];
+          acc[id].push(log);
+          return acc;
+        }, {});
+
+        
+
+        const groupedArray = Object.keys(grouped).map(id => ({
+          session_id: id,
+          logs: grouped[id],
+        }));
+
+        setSessionLogs(groupedArray);
+        toast.info(`Found ${groupedArray.length} sessions.`);
+      } else {
         toast.warn("No data found for the selected filters.");
-        return;
       }
-      const uniqueSessionIds = new Set(matchingLogs.map(log => log.session_id));
-      const filteredSessions = allSessions.filter(session => uniqueSessionIds.has(session.id));
-      setDisplayedMarkers(filteredSessions);
-      toast.info(`${filteredSessions.length} sessions match your criteria.`);
     } catch (error) {
       toast.error("Failed to apply filters: " + error.message);
-      setDisplayedMarkers([]);
+      setSessionLogs([]);
     } finally {
       setIsLoading(false);
     }
@@ -113,6 +134,7 @@ const MapView = () => {
     setDisplayedMarkers(allSessions);
     setSelectedSessionData(null);
     handleClearPolygons();
+    setSessionLogs([]);
   };
 
   const drawingOptions = useMemo(() => {
@@ -139,12 +161,9 @@ const MapView = () => {
     try {
       polygon.setEditable(false);
       setPolygons(prev => [...prev, polygon]);
-      
-      // Use the panel's loading state to show activity without hiding the map
       setIsPanelLoading(true);
-      setSelectedSessionData(null); // Close any previously open session
+      setSelectedSessionData(null);
 
-      // Filter sessions that are inside the drawn polygon
       const sessionsInside = allSessions.filter(session => {
         const sessionLatLng = new window.google.maps.LatLng(
           parseFloat(session.start_lat),
@@ -160,36 +179,32 @@ const MapView = () => {
       }
 
       toast.info(`Found ${sessionsInside.length} sessions. Fetching details...`);
-      
-      // Fetch logs for all sessions found inside the polygon
+
       const logFetchPromises = sessionsInside.map(session =>
         mapViewApi.getNetworkLog({ session_id: session.id, limit: 10000 })
       );
       const allLogsArrays = await Promise.all(logFetchPromises);
       const combinedLogs = allLogsArrays.flat().filter(Boolean);
 
-      // Create a special "summary" session object to pass to the detail panel
       const summarySession = {
         id: `Area Selection (${sessionsInside.length} sessions)`,
-        isMultiSession: true, // This is the key flag!
+        isMultiSession: true,
       };
-      
-      // Set the data that will open the panel and display the multi-session view
+
       setSelectedSessionData({
         session: summarySession,
         logs: combinedLogs,
-        sessions: sessionsInside, // Pass the array of sessions
+        sessions: sessionsInside,
       });
 
     } catch (error) {
       console.error("Error processing polygon selection:", error);
       toast.error("An error occurred while fetching data for the selected area.");
     } finally {
-      setIsPanelLoading(false); // Stop the panel spinner
+      setIsPanelLoading(false);
     }
   };
 
-  // Helper to clear drawn polygons from the map
   const handleClearPolygons = () => {
     polygons.forEach(p => p.setMap(null));
     setPolygons([]);
@@ -203,14 +218,14 @@ const MapView = () => {
   if (loadError) return <div className="p-4 text-center text-red-500">Error loading Google Maps.</div>;
 
   return (
-    <div className="relative h-full w-full overflow-y-auto overflow-hidden">
+    <div className="relative h-full w-full overflow-hidden">
       <MapHeader map={map} />
       <MapSidebar
         sessions={allSessions}
         onApplyFilters={handleApplyFilters}
         onClearFilters={handleClearFilters}
       />
-      
+
       {isLoading && !isPanelLoading && (
         <div className="absolute inset-0 z-30 flex items-center justify-center bg-white/70 dark:bg-black/70">
           <Spinner />
@@ -220,7 +235,7 @@ const MapView = () => {
       <GoogleMap
         mapContainerStyle={mapContainerStyle}
         center={DELHI_CENTER}
-        zoom={12}
+        zoom={13}
         onLoad={onMapLoad}
         options={{ disableDefaultUI: true, zoomControl: true }}
       >
@@ -230,7 +245,8 @@ const MapView = () => {
             options={drawingOptions}
           />
         )}
-        
+
+        {/* Static session markers (initial load) */}
         {displayedMarkers.map(session => (
           <Marker
             key={session.id}
@@ -239,32 +255,54 @@ const MapView = () => {
             title={`Session ID: ${session.id}\nUser: ${session.CreatedBy}`}
           />
         ))}
+
+        {/* Logs grouped by session */}
+        {sessionLogs.map((sessionGroup, idx) => (
+          <MarkerClusterer key={`cluster-${sessionGroup.session_id}`}  options={{
+            imagePath: 'https://developers.google.com/maps/documentation/javascript/examples/markerclusterer/m',
+        }}>
+            {(clusterer) =>
+              sessionGroup.logs.map((log, index) => {
+                const latNum = parseFloat(log.lat);
+                const lngNum = parseFloat(log.lon);
+                if (isNaN(latNum) || isNaN(lngNum)) return null;
+
+                const colors = ["#e67e22", "#3498db", "#2ecc71", "#9b59b6", "#f1c40f"];
+                const color = colors[idx % colors.length];
+                const MAP_PIN_PATH = 'M 0,0 C -2,-20 -10,-22 -10,-30 A 10,10 0 1,1 10,-30 C 10,-22 2,-20 0,0 z';
+                const markerIcon = {
+                  path: MAP_PIN_PATH,
+                  scale: 5,
+                  fillColor: color,
+                  fillOpacity: 1,
+                  strokeWeight: 1,
+                  strokeColor: '#ffffff',
+                  anchor: new window.google.maps.Point(0, -40)
+                };
+
+                return (
+                  <Marker
+                    key={`log-${sessionGroup.session_id}-${index}`}
+                    position={{ lat: latNum, lng: lngNum }}
+                    clusterer={clusterer}
+                    icon={markerIcon}
+                    title={`Session ID: ${sessionGroup.session_id}`}
+                  />
+                );
+              })
+            }
+          </MarkerClusterer>
+        ))}
       </GoogleMap>
-      
-      {/* This panel will now appear when selectedSessionData is set */}
+
       <SessionDetailPanel
         sessionData={selectedSessionData}
         isLoading={isPanelLoading}
         onClose={() => {
-            setSelectedSessionData(null);
-            handleClearPolygons(); // Also clear polygons when closing the panel
+          setSelectedSessionData(null);
+          handleClearPolygons();
         }}
       />
-      
-      {polygons.length > 0 && (
-         <button
-            onClick={() => {
-                handleClearPolygons();
-                setSelectedSessionData(null);
-            }}
-            className="absolute top-20 right-[25rem] z-20 px-3 py-2 rounded-md bg-red-600 text-white hover:bg-red-700 shadow"
-            title="Clear drawn shapes and selection"
-          >
-            Clear Selection
-          </button>
-      )}
-      
-      
     </div>
   );
 };

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import PropTypes from 'prop-types';
 import { Button } from "@/components/ui/button";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Label } from "@/components/ui/label";
@@ -7,62 +8,24 @@ import { Filter } from 'lucide-react';
 import { mapViewApi } from '@/api/apiEndpoints';
 import { Slider } from "@/components/ui/slider";
 
- const getYesterday = () => {
-        const today = new Date();
-        const yesterday = new Date(today); // Create a copy to avoid modifying the original date object
-        yesterday.setDate(today.getDate() - 1);
-        return yesterday;
-    };
-// Define a default state object that is always available.
+// Add default filters
 const defaultFilters = {
-    startDate: getYesterday(),
+    startDate: new Date(),
     endDate: new Date(),
     provider: 'ALL',
     technology: 'ALL',
     band: 'ALL',
     measureIn: 'rsrp',
-   
+    rsrpRange: [-140, 0],
+    rsrqRange: [-34, 0],
+    sinrRange: [-10, 50],
 };
 
-const MapSidebar = ({ onApplyFilters, initialFilters }) => {
-    // 1. Initialize state with the guaranteed default object first.
-    const [filters, setFilters] = useState(defaultFilters);
+const MapSidebar = ({ onApplyFilters = () => {}, initialFilters = defaultFilters }) => {
+    // Use the initialFilters with fallback to defaultFilters
+    const [filters, setFilters] = useState(initialFilters || defaultFilters);
     const [providers, setProviders] = useState([]);
     const [technologies, setTechnologies] = useState([]);
-
-    // Normalizes provider names to canonical values and collapses variants into one label.
-    const normalizeProviderName = (raw) => {
-        if (raw === null || raw === undefined) return 'Unknown';
-        const s = String(raw).trim();
-        if (s === '') return 'Unknown';
-
-        const low = s.toLowerCase();
-
-        // Unknown mappings: purely slashes or specific numeric code
-        if (low.includes('404011') || /^[\/\\]+$/.test(s)) return 'Unknown';
-
-        // JIO variants
-        if (/jio/i.test(s)) return 'JIO';
-        // VI variants (Vodafone / Vi)
-        if (/vodafone/i.test(s) || /\bvi\b/i.test(s) || /vodafone\s*in/i.test(s)) return 'VI';
-        // Airtel variants
-        if (/airtel/i.test(s)) return 'airtel';
-
-        // fallback: return trimmed original (preserve casing)
-        return s;
-    };
-
-    
-    // 2. Use an effect to sync with the parent's prop when it becomes available.
-    // This is the most robust way to handle props that might be undefined initially.
-    useEffect(() => {
-        if (initialFilters) {
-            // Normalize incoming provider value so it matches the Select items we show.
-            const normalizedProvider = normalizeProviderName(initialFilters.provider);
-            setFilters(prev => ({ ...prev, ...initialFilters, provider: normalizedProvider }));
-        }
-    }, [initialFilters]);
-
 
     useEffect(() => {
         const fetchFilterOptions = async () => {
@@ -71,15 +34,7 @@ const MapSidebar = ({ onApplyFilters, initialFilters }) => {
                     mapViewApi.getProviders(),
                     mapViewApi.getTechnologies()
                 ]);
-
-                // Normalize provider names and dedupe them so similar names show as one entry.
-                const provList = Array.isArray(provRes) ? provRes : [];
-                const normalizedSet = new Set(
-                    provList.map(p => normalizeProviderName(p.name))
-                );
-                const normalizedProviders = Array.from(normalizedSet).map(name => ({ id: name, name }));
-
-                setProviders(normalizedProviders);
+                setProviders(provRes || []);
                 setTechnologies(techRes || []);
             } catch (error) {
                 console.error("Failed to fetch filter options", error);
@@ -96,20 +51,25 @@ const MapSidebar = ({ onApplyFilters, initialFilters }) => {
         setFilters(prev => ({ ...prev, [`${key}Range`]: value }));
     };
 
-    // The component can now safely render because 'filters' is never undefined.
+    // Update filters when initialFilters changes
+    useEffect(() => {
+        if (initialFilters) {
+            setFilters(initialFilters);
+        }
+    }, [initialFilters]);
+
     return (
-        <div className="absolute top-4 left-10 h-auto max-h-[90vh] w-80 bg-white dark:bg-slate-950 dark:text-white rounded-lg border z-10 flex flex-col shadow-lg">
+        <div className="absolute top-4 left-4 h-auto max-h-[90vh] w-80 bg-white dark:bg-slate-950 dark:text-white rounded-lg border z-10 flex flex-col shadow-lg">
             <div className="p-4 border-b">
                 <h2 className="text-lg font-bold">Log Data Filters</h2>
             </div>
 
             <div className="flex-grow overflow-y-auto p-4 space-y-4">
-                <div className="">
+                <div className="grid grid-cols-2 gap-2">
                     <div>
                         <Label>Start Date</Label>
                         <DatePicker date={filters.startDate} setDate={(d) => handleFilterChange('startDate', d)} />
                     </div>
-                   
                     <div>
                         <Label>End Date</Label>
                         <DatePicker date={filters.endDate} setDate={(d) => handleFilterChange('endDate', d)} />
@@ -141,15 +101,21 @@ const MapSidebar = ({ onApplyFilters, initialFilters }) => {
                         <SelectItem value="rsrp">RSRP</SelectItem>
                         <SelectItem value="rsrq">RSRQ</SelectItem>
                         <SelectItem value="sinr">SINR</SelectItem>
-                        <SelectItem value="ul-throughput">UL-Throughput</SelectItem>
-                        <SelectItem value="dl-throughput">DL-Throughput</SelectItem>
-                        <SelectItem value="volte-cell">VoLTE-Cell</SelectItem>
-                        <SelectItem value="lte-bler">LTE-BLER</SelectItem>
-                        <SelectItem value="MOS">MOS</SelectItem>
                     </SelectContent>
                 </Select>
 
-                
+                <div>
+                    <Label>RSRP Range ({filters.rsrpRange.join(' to ')} dBm)</Label>
+                    <Slider defaultValue={filters.rsrpRange} min={-140} max={0} step={1} onValueChange={(v) => handleRangeChange('rsrp', v)} />
+                </div>
+                <div>
+                    <Label>RSRQ Range ({filters.rsrqRange.join(' to ')} dB)</Label>
+                    <Slider defaultValue={filters.rsrqRange} min={-34} max={0} step={1} onValueChange={(v) => handleRangeChange('rsrq', v)} />
+                </div>
+                <div>
+                    <Label>SINR Range ({filters.sinrRange.join(' to ')} dB)</Label>
+                    <Slider defaultValue={filters.sinrRange} min={-10} max={50} step={1} onValueChange={(v) => handleRangeChange('sinr', v)} />
+                </div>
             </div>
 
             <div className="p-4 border-t">
@@ -162,5 +128,19 @@ const MapSidebar = ({ onApplyFilters, initialFilters }) => {
     );
 };
 
-export default MapSidebar;
+MapSidebar.propTypes = {
+    onApplyFilters: PropTypes.func,
+    initialFilters: PropTypes.shape({
+        startDate: PropTypes.instanceOf(Date),
+        endDate: PropTypes.instanceOf(Date),
+        provider: PropTypes.string,
+        technology: PropTypes.string,
+        band: PropTypes.string,
+        measureIn: PropTypes.string,
+        rsrpRange: PropTypes.arrayOf(PropTypes.number),
+        rsrqRange: PropTypes.arrayOf(PropTypes.number),
+        sinrRange: PropTypes.arrayOf(PropTypes.number),
+    })
+};
 
+export default MapSidebar;

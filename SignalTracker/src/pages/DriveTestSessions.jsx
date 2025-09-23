@@ -26,6 +26,7 @@ const DriveTestSessionsPage = () => {
         try {
             setLoading(true);
             const data = await adminApi.getSessions();
+            console.log('Fetched sessions:', data);
             setSessions(Array.isArray(data) ? data : []);
         } catch (error) {
             toast.error(`Failed to fetch sessions: ${error.message}`);
@@ -51,7 +52,7 @@ const DriveTestSessionsPage = () => {
     };
 
     const handleViewOnMap = (sessionId) => {
-        navigate(`/map-view?session=${sessionId}`);
+        navigate(`/map?session=${sessionId}`);
     };
 
     const formatDate = (dateString) => {
@@ -81,26 +82,30 @@ const DriveTestSessionsPage = () => {
                 <Table>
                     <TableHeader>
                         <TableRow>
-                            <TableHead>Session Remarks</TableHead>
+                            
                             <TableHead>User Details</TableHead>
                             <TableHead>Start Time</TableHead>
                             <TableHead>End Time</TableHead>
+                            <TableHead>Distance(in Km)</TableHead>
+                            <TableHead>Session Remarks</TableHead>
                             <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
                         {currentSessions.map((session) => (
                             <TableRow key={session.id}>
-                                <TableCell className="font-medium">{session.notes || 'No Remarks'}</TableCell>
+                                
 
                                 <TableCell>
-                                    <div className="font-medium">{session.name || 'Unknown User'} ({session.mobile || 'N/A'})</div>
+                                    <div className="font-medium">{session.CreatedBy || 'Unknown User'} ({session.mobile || 'N/A'})</div>
                                     <div className="text-sm text-muted-foreground">
                                         {session.make}, {session.model}, {session.os}, {session.operator_name}
                                     </div>
                                 </TableCell>
                                 <TableCell>{formatDate(session.start_time)}</TableCell>
                                 <TableCell>{formatDate(session.end_time)}</TableCell>
+                                <TableCell>{session.distance_km || 'N/A'}</TableCell>
+                                <TableCell className="font-medium">{session.notes || 'No Remarks'}</TableCell>
                                 <TableCell className="text-right">
                                     <Button variant="outline" size="sm" onClick={() => handleViewOnMap(session.id)}>
                                         <Map className="h-4 w-4 mr-2" />

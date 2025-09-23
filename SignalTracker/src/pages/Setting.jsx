@@ -85,6 +85,7 @@ const SettingsPage = () => {
             setLoading(true);
             try {
                 const response = await settingApi.getThresholdSettings();
+                console.log("Fetched Threshold Settings:", response);
                 
                 if (response && response.Status === 1 && response.Data) {
                     const data = response.Data;

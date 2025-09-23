@@ -1,46 +1,37 @@
-// This is the recommended replacement for your search component
-import React, { useRef, useEffect } from 'react';
+// PlaceAutocomplete.jsx
+import React, { useEffect, useRef } from "react";
 
 const PlaceAutocomplete = ({ onPlaceSelect }) => {
-    const inputRef = useRef(null);
-    const autocompleteRef = useRef(null);
+  const autocompleteRef = useRef(null);
 
-    useEffect(() => {
-        if (!window.google || !inputRef.current) {
-            return;
-        }
+  useEffect(() => {
+    if (!window.google || !window.google.maps || !autocompleteRef.current) return;
 
-        // Create the new PlaceAutocompleteElement
-        const autocompleteElement = new window.google.maps.places.PlaceAutocompleteElement({
-            inputElement: inputRef.current,
-        });
+    const placeAutocomplete = autocompleteRef.current;
 
-        autocompleteRef.current = autocompleteElement;
+    // Listen for place selection
+    const listener = placeAutocomplete.addEventListener("gmp-placeselect", (event) => {
+      const place = event.detail;
+      if (place && place.location) {
+        onPlaceSelect(place);
+      }
+    });
 
-        // Listen for the 'gmp-placeselect' event
-        const listener = autocompleteElement.addEventListener('gmp-placeselect', async (event) => {
-            const place = await event.target.place;
-            if (place) {
-                onPlaceSelect(place); // Pass the selected place to the parent component
-            }
-        });
+    return () => {
+      if (listener) {
+        placeAutocomplete.removeEventListener("gmp-placeselect", listener);
+      }
+    };
+  }, [onPlaceSelect]);
 
-        return () => {
-            // Clean up the event listener
-            if (listener) {
-                listener.remove();
-            }
-        };
-    }, [onPlaceSelect]);
-
-    return (
-        <input 
-            ref={inputRef}
-            type="text" 
-            placeholder="Search for a location" 
-            className="your-input-styles"
-        />
-    );
+  return (
+    <gmpx-place-autocomplete
+      ref={autocompleteRef}
+      style={{ width: "100%" }}
+      placeholder="Search for a location"
+      countries="IN" // Restrict to India
+    />
+  );
 };
 
 export default PlaceAutocomplete;

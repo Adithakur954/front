@@ -25,7 +25,8 @@ const ManageUsersPage = () => {
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [currentUser, setCurrentUser] = useState(null);
     const [filters, setFilters] = useState({ UserName: '', MobileNo: '', EmailId: '' });
-
+    const [isFetchingDetails, setIsFetchingDetails] = useState(false);
+    
     const [currentPage, setCurrentPage] = useState(1);
     const [usersPerPage] = useState(10);
 
@@ -82,17 +83,48 @@ const ManageUsersPage = () => {
         handleCloseDialog();
     };
 
-     const handleDeleteUser = async (userId) => {
-        if (window.confirm('Are you sure you want to delete this user? This action cannot be undone.')) {
-            try {
-                // Using adminApi for the delete operation
-                await adminApi.deleteUser(userId);
-                toast.success('User deleted successfully!');
+    const handleDeleteUser = async (userOrId) => {
+        // accept either a user object or an id
+        const userId = typeof userOrId === 'object'
+            ? (userOrId.id ?? userOrId.UserId ?? userOrId.user_id ?? userOrId.userId)
+            : userOrId;
+
+        if (!userId) {
+            console.error('Delete user missing id:', userOrId);
+            toast.error('Cannot determine user id for delete.');
+            return;
+        }
+
+        if (!window.confirm('Are you sure you want to delete this user? This action cannot be undone.')) {
+            return;
+        }
+
+        try {
+            const response = await adminApi.deleteUser(userId);
+
+            // treat API-specific success shapes: many internal APIs return Status:1 and Message
+            const ok =
+                response?.Status === 1 ||
+                response?.Status === '1' ||
+                response?.status === 200 ||
+                response?.status === '200' ||
+                response?.Success === true ||
+                response?.success === true ||
+                response?.IsSuccess === true ||
+                (typeof response?.Message === 'string' && /success/i.test(response.Message));
+
+            if (ok) {
+                const successMsg = response?.Message || 'User deleted successfully!';
+                toast.success(successMsg);
                 fetchUsers();
-            } catch (error)
-            {
-                toast.error(error.message || 'Failed to delete user.');
+            } else {
+                const msg = response?.Message || response?.message || 'Failed to delete user.';
+                console.error('Delete failed response:', response);
+                toast.error(msg);
             }
+        } catch (error) {
+            console.error('Delete error:', error);
+            toast.error(error?.message || 'Failed to delete user.');
         }
     };
     
@@ -136,7 +168,7 @@ const ManageUsersPage = () => {
                     <DropdownMenuContent align="end">
                         <DropdownMenuLabel>Actions</DropdownMenuLabel>
                         <DropdownMenuItem onClick={() => handleOpenDialog(user)}>Edit</DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleDeleteUser(user.id)} className="text-red-600 focus:text-red-600 focus:bg-red-50">
+                        <DropdownMenuItem onClick={() => handleDeleteUser(user)} className="text-red-600 focus:text-red-600 focus:bg-red-50">
                             Delete
                         </DropdownMenuItem>
                     </DropdownMenuContent>

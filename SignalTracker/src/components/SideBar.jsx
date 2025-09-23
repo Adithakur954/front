@@ -1,15 +1,15 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Upload, History, Map, Settings, Users, FolderGit2 } from 'lucide-react';
+import { LayoutDashboard, Upload, History, Map, Settings, Users} from 'lucide-react';
 import VinfocomLogo from '../assets/vinfocom_logo.png';
 
 const SideBar = ({ collapsed }) => {
   const navLinks = [
     { icon: LayoutDashboard, text: 'Dashboard', path: '/dashboard' },
     { icon: Upload, text: 'Upload Data', path: '/upload-data' },
-    { icon: History, text: 'Drive Test Sessions', path: '/drive-test-sessions' },
+    { icon: History, text: 'Manage Drive Sessions', path: '/drive-test-sessions' },
     { icon: Map, text: 'Map View', path: '/map-view' },
-    { icon: FolderGit2, text: 'Manage Session', path: '/manage-session' },
+    
     { icon: Users, text: 'Manage User', path: '/manage-users' },
     { icon: Settings, text: 'Setting', path: '/settings' },
   ];
@@ -17,7 +17,7 @@ const SideBar = ({ collapsed }) => {
   return (
     <div
       className={`h-screen bg-gray-800 text-white flex flex-col shadow-lg transition-all duration-300
-        ${collapsed ? 'w-16' : 'w-64'}`}
+        ${collapsed ? 'w-16' : 'w-60'}`}
     >
       {/* Logo */}
       <div className="p-4 flex items-center justify-center border-b border-gray-700">
