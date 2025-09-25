@@ -1,37 +1,91 @@
-// src/pages/MapView.jsx
-import React, { useState, useEffect, useCallback } from "react";
-import { GoogleMap, useJsApiLoader, Circle } from "@react-google-maps/api";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { GoogleMap, useJsApiLoader, Marker } from "@react-google-maps/api";
 import { toast } from "react-toastify";
 import { adminApi, mapViewApi, settingApi } from "../api/apiEndpoints";
 import MapSidebar from "../components/map/layout/MapSidebar";
 import SessionDetailPanel from "../components/map/layout/SessionDetail";
+import AllLogsDetailPanel from "../components/map/layout/AllLogsDetailPanel";
 import MapHeader from "../components/map/layout/MapHeader";
 import Spinner from "../components/common/Spinner";
+import LogLayer from "../components/map/layers/LogLayer";
 
-const GOOGLE_MAPS_LIBRARIES = ["places", "geometry"];
+const MAP_ID = import.meta.env.VITE_GOOGLE_MAPS_MAP_ID;
+const GOOGLE_MAPS_LIBRARIES = ["places", "geometry"]; // marker lib not needed for simple Marker
 const DELHI_CENTER = { lat: 28.6139, lng: 77.2090 };
 const MAP_CONTAINER_STYLE = { height: "100vh", width: "100%" };
+
+// Persist/restore viewport
+const VIEWPORT_KEY = "map_viewport_v1";
+const loadSavedViewport = () => {
+  try {
+    const raw = localStorage.getItem(VIEWPORT_KEY);
+    if (!raw) return null;
+    const v = JSON.parse(raw);
+    if (
+      v &&
+      Number.isFinite(v.lat) &&
+      Number.isFinite(v.lng) &&
+      Number.isFinite(v.zoom)
+    ) {
+      return v;
+    }
+  } catch {}
+  return null;
+};
+const saveViewport = (map) => {
+  try {
+    const c = map.getCenter?.();
+    const z = map.getZoom?.();
+    if (!c || !Number.isFinite(z)) return;
+    localStorage.setItem(
+      VIEWPORT_KEY,
+      JSON.stringify({ lat: c.lat(), lng: c.lng(), zoom: z })
+    );
+  } catch {}
+};
+
+// Helper function to resolve metric keys to database fields and threshold keys
+const resolveMetricConfig = (key) => {
+  const map = {
+    rsrp: { field: "rsrp", thresholdKey: "rsrp" },
+    rsrq: { field: "rsrq", thresholdKey: "rsrq" },
+    sinr: { field: "sinr", thresholdKey: "sinr" },
+    "dl-throughput": { field: "dl_tpt", thresholdKey: "dl_thpt" },
+    "ul-throughput": { field: "ul_tpt", thresholdKey: "ul_thpt" },
+    mos: { field: "mos", thresholdKey: "mos" },
+    "lte-bler": { field: "bler", thresholdKey: "lte_bler" },
+  };
+  return map[key?.toLowerCase()] || map.rsrp; // Default to RSRP
+};
 
 const MapView = () => {
   const { isLoaded, loadError } = useJsApiLoader({
     googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
     libraries: GOOGLE_MAPS_LIBRARIES,
+    mapId: MAP_ID,
   });
 
   const [map, setMap] = useState(null);
   const [allSessions, setAllSessions] = useState([]);
-  const [sessionLogsMap, setSessionLogsMap] = useState(new Map());
   const [selectedSessionData, setSelectedSessionData] = useState(null);
   const [thresholds, setThresholds] = useState({});
   const [selectedMetric, setSelectedMetric] = useState("rsrp");
   const [isLoading, setIsLoading] = useState(false);
+  const [showAllLogsPanel, setShowAllLogsPanel] = useState(false);
+  const [activeFilters, setActiveFilters] = useState(null);
 
-  // Load thresholds
+  // Logs fetched by LogLayer and kept here for the detail panel
+  const [drawnLogs, setDrawnLogs] = useState([]);
+
+  // Keep a ref to remove listener on unmount
+  const idleListenerRef = useRef(null);
+
+  // thresholds
   useEffect(() => {
     const fetchThresholds = async () => {
       try {
         const res = await settingApi.getThresholdSettings();
-        if (res && res.Data) {
+        if (res?.Data) {
           const data = res.Data;
           setThresholds({
             rsrp: JSON.parse(data.rsrp_json || "[]"),
@@ -44,13 +98,12 @@ const MapView = () => {
           });
         }
       } catch (error) {
-        console.error("Error fetching thresholds:", error);
+        toast.error("Could not load color thresholds.");
       }
     };
     fetchThresholds();
   }, []);
 
-  // Load sessions
   const fetchAllSessions = useCallback(async () => {
     setIsLoading(true);
     try {
@@ -60,9 +113,8 @@ const MapView = () => {
           !isNaN(parseFloat(s.start_lat)) && !isNaN(parseFloat(s.start_lon))
       );
       setAllSessions(validSessions);
-      setSessionLogsMap(new Map());
     } catch (error) {
-      toast.error("Failed to fetch sessions: " + error.message);
+      toast.error(`Failed to fetch sessions: ${error?.message || "Unknown error"}`);
     } finally {
       setIsLoading(false);
     }
@@ -72,113 +124,71 @@ const MapView = () => {
     if (isLoaded) fetchAllSessions();
   }, [isLoaded, fetchAllSessions]);
 
-  const onMapLoad = useCallback((mapInstance) => setMap(mapInstance), []);
+  const onMapLoad = useCallback((mapInstance) => {
+    setMap(mapInstance);
+    // Restore viewport
+    const saved = loadSavedViewport();
+    if (saved) {
+      mapInstance.setCenter({ lat: saved.lat, lng: saved.lng });
+      mapInstance.setZoom(saved.zoom);
+    }
+    // Persist viewport when user stops interacting
+    idleListenerRef.current = mapInstance.addListener("idle", () => {
+      saveViewport(mapInstance);
+    });
+  }, []);
 
-  // Compute color for a metric value
-  const getColorForMetric = useCallback(
-    (metric, value) => {
-      if (!metric || isNaN(value)) return "#000000";
-      const metricThresholds = thresholds[metric];
-      if (!metricThresholds || metricThresholds.length === 0) return "#000000";
-      const numericValue = parseFloat(value);
-      const match = metricThresholds.find(
-        (t) => numericValue >= t.min && numericValue <= t.max
-      );
-      return match ? match.color : "#000000";
-    },
-    [thresholds]
-  );
-
-  // Apply filters
-  const handleApplyFilters = async (filters) => {
-    setIsLoading(true);
-    setSelectedMetric(filters.measureIn || "rsrp");
-    setSelectedSessionData(null);
-
+  const onMapUnmount = useCallback(() => {
     try {
-      const apiParams = {
-        StartDate: filters.startDate.toISOString().split("T")[0],
-        EndDate: filters.endDate.toISOString().split("T")[0],
-      };
-      const logs = await mapViewApi.getLogsByDateRange(apiParams);
-      if (!logs || logs.length === 0) {
-        toast.warn("No logs found for selected filters.");
-        setSessionLogsMap(new Map());
-        return;
+      if (idleListenerRef.current) {
+        window.google?.maps?.event?.removeListener?.(idleListenerRef.current);
       }
+    } catch {}
+    idleListenerRef.current = null;
+    setMap(null);
+  }, []);
 
-      // Group logs by session
-      const grouped = new Map();
-      logs.forEach((log) => {
-        if (!grouped.has(log.session_id)) grouped.set(log.session_id, []);
-        grouped.get(log.session_id).push(log);
-      });
+  const handleApplyFilters = (filters) => {
+    setActiveFilters(filters);
+    setSelectedMetric(filters.measureIn?.toLowerCase() || "rsrp");
+    setSelectedSessionData(null);
+  };
 
-      // Keep every 3rd log for performance
-      const optimizedMap = new Map();
-      grouped.forEach((logs, sessionId) => {
-        optimizedMap.set(
-          sessionId,
-          logs.filter((_, idx) => idx % 3 === 0)
-        );
-      });
+  const handleClearFilters = useCallback(() => {
+    setActiveFilters(null);
+    setDrawnLogs([]);
+    setShowAllLogsPanel(false);
+    fetchAllSessions(); // do not change viewport; keep saved zoom/center
+  }, [fetchAllSessions]);
 
-      setSessionLogsMap(optimizedMap);
-
-      // Fit map bounds
-      if (map) {
-        const bounds = new window.google.maps.LatLngBounds();
-        let hasValid = false;
-        optimizedMap.forEach((logs) => {
-          logs.forEach((log) => {
-            const lat = parseFloat(log.lat);
-            const lon = parseFloat(log.lon);
-            if (!isNaN(lat) && !isNaN(lon)) {
-              bounds.extend({ lat, lng: lon });
-              hasValid = true;
-            }
-          });
-        });
-        if (hasValid) map.fitBounds(bounds);
-      }
-
-      toast.info(`Loaded ${optimizedMap.size} sessions.`);
+  const handleSessionMarkerClick = async (session) => {
+    setIsLoading(true);
+    setShowAllLogsPanel(false);
+    try {
+      const logs = await mapViewApi.getNetworkLog(session.id);
+      setSelectedSessionData({ session, logs: logs || [] });
     } catch (error) {
-      toast.error("Failed to apply filters: " + error.message);
-      setSessionLogsMap(new Map());
+      toast.error(
+        `Failed to fetch logs for session ${session.id}: ${error?.message || "Unknown error"}`
+      );
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleClearFilters = () => {
-    setSessionLogsMap(new Map());
-    fetchAllSessions();
-  };
+  const handleLogsLoaded = useCallback((logs) => {
+    setDrawnLogs(logs || []);
+    setShowAllLogsPanel(Boolean(logs?.length));
+  }, []);
 
-  // Flatten logs for rendering
-  const filteredLogs = [...sessionLogsMap.values()]
-    .flat()
-    .map((log) => {
-      const metricValue =
-        log[selectedMetric.toLowerCase()] || log[selectedMetric] || 0;
-      return {
-        ...log,
-        lat: parseFloat(log.lat),
-        lon: parseFloat(log.lon),
-        value: parseFloat(metricValue),
-      };
-    })
-    .filter((log) => !isNaN(log.lat) && !isNaN(log.lon));
-
+  if (loadError) return <div>Error loading Google Maps.</div>;
   if (!isLoaded) return <Spinner />;
-  if (loadError) return <div>Error loading Google Maps</div>;
 
   return (
     <div className="relative h-full w-full">
       <MapHeader map={map} />
+
       <MapSidebar
-        sessions={allSessions}
         onApplyFilters={handleApplyFilters}
         onClearFilters={handleClearFilters}
       />
@@ -194,49 +204,53 @@ const MapView = () => {
         center={DELHI_CENTER}
         zoom={14}
         onLoad={onMapLoad}
-        options={{ disableDefaultUI: true, zoomControl: true }}
+        onUnmount={onMapUnmount}
+        options={{ disableDefaultUI: true, zoomControl: true, mapId: MAP_ID }}
       >
-        {/* Show session markers if no logs */}
-        {sessionLogsMap.size === 0 &&
+        {/* Show session markers if no filters are active */}
+        {!activeFilters &&
           allSessions.map((s) => {
             const lat = parseFloat(s.start_lat);
-            const lon = parseFloat(s.start_lon);
-            if (isNaN(lat) || isNaN(lon)) return null;
+            const lng = parseFloat(s.start_lon);
+            if (isNaN(lat) || isNaN(lng)) return null;
             return (
-              <Circle
+              <Marker
                 key={`session-${s.id}`}
-                center={{ lat, lng: lon }}
-                radius={20}
-                options={{
-                  strokeColor: "#007BFF",
-                  fillColor: "#007BFF",
-                  fillOpacity: 0.8,
-                  strokeWeight: 1,
-                }}
-                onClick={() => setSelectedSessionData({ session: s, logs: [] })}
+                position={{ lat, lng }}
+                title={`Session ${s.id}`}
+                onClick={() => handleSessionMarkerClick(s)}
               />
             );
           })}
 
-        {/* Log circles */}
-        {filteredLogs.map((log, idx) => (
-          <Circle
-            key={`log-${idx}`}
-            center={{ lat: log.lat, lng: log.lon }}
-            radius={20}
-            options={{
-              strokeColor: getColorForMetric(selectedMetric, log.value),
-              fillColor: getColorForMetric(selectedMetric, log.value),
-              fillOpacity: 0.8,
-              strokeWeight: 1,
-            }}
+        {/* Show log circles when filters are active via LogLayer */}
+        {activeFilters && map && (
+          <LogLayer
+            map={map}
+            filters={activeFilters}
+            selectedMetric={selectedMetric}
+            thresholds={thresholds}
+            onLogsLoaded={handleLogsLoaded}
+            setIsLoading={setIsLoading}
           />
-        ))}
+        )}
       </GoogleMap>
+
+      {showAllLogsPanel && activeFilters && (
+        <AllLogsDetailPanel
+          logs={drawnLogs}
+          thresholds={thresholds}
+          selectedMetric={selectedMetric}
+          isLoading={isLoading}
+          onClose={() => setShowAllLogsPanel(false)}
+        />
+      )}
 
       <SessionDetailPanel
         sessionData={selectedSessionData}
         isLoading={isLoading}
+        thresholds={thresholds}
+        selectedMetric={selectedMetric}
         onClose={() => setSelectedSessionData(null)}
       />
     </div>
