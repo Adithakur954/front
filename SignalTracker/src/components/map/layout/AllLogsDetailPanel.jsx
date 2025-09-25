@@ -23,10 +23,15 @@ const AllLogsDetailPanel = ({ logs = [], thresholds = {}, selectedMetric = 'rsrp
   const cfg = resolveMetricConfig(selectedMetric);
   const ranges = thresholds[cfg.thresholdKey] || [];
 
+  console.log(logs);
+
   const summary = useMemo(() => {
     if (!ranges.length || !logs.length) {
       return { total: 0, avg: 'N/A', min: 'N/A', max: 'N/A', buckets: [] };
     }
+
+    console.log('Calculating summary for', logs.length, 'logs and', ranges.length, 'ranges');
+    
 
     const buckets = ranges.map(r => ({ ...r, count: 0 }));
     let total = 0;
@@ -60,6 +65,8 @@ const AllLogsDetailPanel = ({ logs = [], thresholds = {}, selectedMetric = 'rsrp
     };
   }, [logs, ranges, cfg.field]);
 
+  console.log(summary)
+
   return (
     <div className="absolute top-0 right-0 w-96 bg-white dark:bg-slate-900 shadow-2xl z-20">
       <div className="flex flex-col h-full">
@@ -83,6 +90,7 @@ const AllLogsDetailPanel = ({ logs = [], thresholds = {}, selectedMetric = 'rsrp
                 <p><strong>Average:</strong> {summary.avg}</p>
                 <p><strong>Min:</strong> {summary.min}</p>
                 <p><strong>Max:</strong> {summary.max}</p>
+                
               </div>
 
               <div>

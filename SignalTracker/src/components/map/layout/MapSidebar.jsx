@@ -28,17 +28,14 @@ const defaultFilters = {
   measureIn: "rsrp",
 };
 
-const normalizeProviderName = (raw) => {
-  // Add any normalization rules you need; safe fallback is raw
-  return (raw || "").trim();
-};
+const normalizeProviderName = (raw) => (raw || "").trim();
 
-const MapSidebar = ({ onApplyFilters, onClearFilters, initialFilters }) => {
+const MapSidebar = ({ onApplyFilters, onClearFilters, onUIChange, ui, initialFilters }) => {
   const [filters, setFilters] = useState(defaultFilters);
   const [providers, setProviders] = useState([]);
   const [technologies, setTechnologies] = useState([]);
   const [bands, setBands] = useState([]);
-  const [activeTab, setActiveTab] = useState("logs"); // reserved for future tabs
+  const [projects, setProjects] = useState([]);
 
   useEffect(() => {
     if (!initialFilters) return;
@@ -48,27 +45,29 @@ const MapSidebar = ({ onApplyFilters, onClearFilters, initialFilters }) => {
   useEffect(() => {
     const fetchFilterOptions = async () => {
       try {
-        const [provRes, techRes, bandsRes] = await Promise.all([
+        const [provRes, techRes, bandsRes, projRes] = await Promise.all([
           mapViewApi.getProviders(),
           mapViewApi.getTechnologies(),
           mapViewApi.getBands(),
+          mapViewApi.getProjects?.() // may return {Status, Data}, handle below
         ]);
 
         const provList = Array.isArray(provRes) ? provRes : [];
         const normalizedSet = new Set(provList.map((p) => normalizeProviderName(p.name)));
-        const normalizedProviders = Array.from(normalizedSet).map((name) => ({
-          id: name,
-          name,
-        }));
+        const normalizedProviders = Array.from(normalizedSet).map((name) => ({ id: name, name }));
 
         setProviders(normalizedProviders);
         setTechnologies(Array.isArray(techRes) ? techRes : []);
         setBands(Array.isArray(bandsRes) ? bandsRes : []);
+
+        // Projects may come wrapped {Status, Data}
+        const projData = Array.isArray(projRes?.Data) ? projRes.Data : (Array.isArray(projRes) ? projRes : []);
+        const projList = projData.map((p) => ({ id: p.id, name: p.project_name }));
+        setProjects(projList);
       } catch (error) {
         console.error("Failed to fetch filter options", error);
       }
     };
-
     fetchFilterOptions();
   }, []);
 
@@ -76,20 +75,50 @@ const MapSidebar = ({ onApplyFilters, onClearFilters, initialFilters }) => {
     setFilters((prev) => ({ ...prev, [key]: value }));
   };
 
+  // MapSidebar.jsx
+const normalizeProviderName = (raw) => {
+  if (!raw) return "Unknown User";
+  const s = String(raw).trim();
+
+  // Unknowns first
+  if (/^\/+$/.test(s)) return "Unknown User"; // ////// etc.
+  if (s.replace(/\s+/g, "") === "404011") return "Unknown User";
+
+  const cleaned = s.toUpperCase().replace(/[\s\-_]/g, "");
+
+  // JIO family
+  if (
+    cleaned.includes("JIO") || // catches JIO, JIO4G, JIOTRUE5G, INDJIO, etc.
+    /^(IND)?JIO(4G|5G|TRUE5G)?$/.test(cleaned)
+  ) return "JIO";
+
+  // Airtel family
+  if (cleaned.includes("AIRTEL") || /^INDAIRTEL$/.test(cleaned))
+    return "Airtel";
+
+  // VI family (Vodafone/Idea/Vi)
+  if (
+    cleaned === "VI" ||
+    cleaned.includes("VIINDIA") ||
+    cleaned.includes("VODAFONEIN") ||
+    cleaned.includes("VODAFONE") ||
+    cleaned.includes("IDEA")
+  ) return "VI India";
+
+  // fallback to original (title-cased)
+  return s;
+};
+
   return (
     <div className="absolute top-4 left-10 h-auto max-h-[90vh] w-80 bg-white dark:bg-slate-950 dark:text-white rounded-lg border z-10 flex flex-col shadow-lg">
-      {/* Tabs header (only logs shown for now) */}
+      {/* Tabs header (single tab for logs/controls) */}
       <div className="flex border-b">
         <button
-          onClick={() => setActiveTab("logs")}
-          className={`flex-1 p-3 text-sm font-medium flex items-center justify-center gap-2 transition-colors ${
-            activeTab === "logs"
-              ? "border-b-2 border-blue-600 text-blue-600 bg-blue-50 dark:bg-slate-900"
-              : "text-gray-500 hover:bg-gray-100 dark:hover:bg-slate-800"
-          }`}
+          className="flex-1 p-3 text-sm font-medium flex items-center justify-center gap-2 border-b-2 border-blue-600 text-blue-600 bg-blue-50 dark:bg-slate-900"
+          disabled
         >
           <Layers size={16} />
-          Log Filters
+          Map Controls
         </button>
       </div>
 
@@ -189,6 +218,109 @@ const MapSidebar = ({ onApplyFilters, onClearFilters, initialFilters }) => {
                   {b.name}
                 </SelectItem>
               ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Project + Polygons */}
+        <div className="grid grid-cols-1 gap-2">
+          <Label>Project (Polygons)</Label>
+          <Select
+            onValueChange={(v) => onUIChange?.({ selectedProjectId: v || null })}
+            value={ui.selectedProjectId ?? ""}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select Project..." />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">None</SelectItem>
+              {projects.map((p) => (
+                <SelectItem key={p.id} value={String(p.id)}>
+                  {p.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={ui.showPolygons}
+              onChange={(e) => onUIChange?.({ showPolygons: e.target.checked })}
+            />
+            Show Project Polygons
+          </label>
+        </div>
+
+        {/* Layers */}
+        <div className="pt-2 border-t">
+          <div className="text-sm font-medium mb-2">Layers</div>
+
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={ui.showSessions}
+              onChange={(e) => onUIChange?.({ showSessions: e.target.checked })}
+              disabled={Boolean(initialFilters)} // sessions are shown only when no log filters
+            />
+            Session Markers (when no filters)
+          </label>
+
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={ui.clusterSessions}
+              onChange={(e) => onUIChange?.({ clusterSessions: e.target.checked })}
+              disabled={!ui.showSessions}
+            />
+            Cluster Sessions
+          </label>
+
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={ui.showLogsCircles}
+              onChange={(e) => onUIChange?.({ showLogsCircles: e.target.checked })}
+              disabled={!initialFilters}
+            />
+            Logs as Circles
+          </label>
+
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={ui.showHeatmap}
+              onChange={(e) => onUIChange?.({ showHeatmap: e.target.checked })}
+              disabled={!initialFilters}
+            />
+            Heatmap
+          </label>
+
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={ui.renderVisibleLogsOnly}
+              onChange={(e) => onUIChange?.({ renderVisibleLogsOnly: e.target.checked })}
+              disabled={!initialFilters}
+            />
+            Render Visible Logs Only
+          </label>
+        </div>
+
+        {/* Basemap */}
+        <div className="pt-2 border-t">
+          <Label>Basemap Style</Label>
+          <Select
+            onValueChange={(v) => onUIChange?.({ basemapStyle: v })}
+            value={ui.basemapStyle}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select style..." />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="default">Default</SelectItem>
+              <SelectItem value="clean">Clean</SelectItem>
+              <SelectItem value="night">Night</SelectItem>
             </SelectContent>
           </Select>
         </div>

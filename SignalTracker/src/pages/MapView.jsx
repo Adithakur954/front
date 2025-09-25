@@ -1,5 +1,11 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import { GoogleMap, useJsApiLoader, Marker } from "@react-google-maps/api";
+import {
+  GoogleMap,
+  useJsApiLoader,
+  Marker,
+  Polygon,
+  MarkerClustererF,
+} from "@react-google-maps/api";
 import { toast } from "react-toastify";
 import { adminApi, mapViewApi, settingApi } from "../api/apiEndpoints";
 import MapSidebar from "../components/map/layout/MapSidebar";
@@ -10,7 +16,7 @@ import Spinner from "../components/common/Spinner";
 import LogLayer from "../components/map/layers/LogLayer";
 
 const MAP_ID = import.meta.env.VITE_GOOGLE_MAPS_MAP_ID;
-const GOOGLE_MAPS_LIBRARIES = ["places", "geometry"]; // marker lib not needed for simple Marker
+const GOOGLE_MAPS_LIBRARIES = ["places", "geometry", "visualization"]; // heatmap needs visualization
 const DELHI_CENTER = { lat: 28.6139, lng: 77.2090 };
 const MAP_CONTAINER_STYLE = { height: "100vh", width: "100%" };
 
@@ -21,12 +27,7 @@ const loadSavedViewport = () => {
     const raw = localStorage.getItem(VIEWPORT_KEY);
     if (!raw) return null;
     const v = JSON.parse(raw);
-    if (
-      v &&
-      Number.isFinite(v.lat) &&
-      Number.isFinite(v.lng) &&
-      Number.isFinite(v.zoom)
-    ) {
+    if (v && Number.isFinite(v.lat) && Number.isFinite(v.lng) && Number.isFinite(v.zoom)) {
       return v;
     }
   } catch {}
@@ -44,18 +45,107 @@ const saveViewport = (map) => {
   } catch {}
 };
 
-// Helper function to resolve metric keys to database fields and threshold keys
+// Metric -> threshold key helper (kept consistent with your code)
 const resolveMetricConfig = (key) => {
   const map = {
-    rsrp: { field: "rsrp", thresholdKey: "rsrp" },
-    rsrq: { field: "rsrq", thresholdKey: "rsrq" },
-    sinr: { field: "sinr", thresholdKey: "sinr" },
-    "dl-throughput": { field: "dl_tpt", thresholdKey: "dl_thpt" },
-    "ul-throughput": { field: "ul_tpt", thresholdKey: "ul_thpt" },
-    mos: { field: "mos", thresholdKey: "mos" },
-    "lte-bler": { field: "bler", thresholdKey: "lte_bler" },
+    rsrp: { field: "rsrp", thresholdKey: "rsrp", label: "RSRP", unit: "dBm" },
+    rsrq: { field: "rsrq", thresholdKey: "rsrq", label: "RSRQ", unit: "dB" },
+    sinr: { field: "sinr", thresholdKey: "sinr", label: "SINR", unit: "dB" },
+    "dl-throughput": { field: "dl_tpt", thresholdKey: "dl_thpt", label: "DL Throughput", unit: "Mbps" },
+    "ul-throughput": { field: "ul_tpt", thresholdKey: "ul_thpt", label: "UL Throughput", unit: "Mbps" },
+    mos: { field: "mos", thresholdKey: "mos", label: "MOS", unit: "" },
+    "lte-bler": { field: "bler", thresholdKey: "lte_bler", label: "LTE BLER", unit: "%" },
   };
-  return map[key?.toLowerCase()] || map.rsrp; // Default to RSRP
+  return map[key?.toLowerCase()] || map.rsrp;
+};
+
+// Simple clean styles for a neat map (optional if you already have a map style via mapId)
+const MAP_STYLES = {
+  default: null,
+  clean: [
+    { featureType: "poi", stylers: [{ visibility: "off" }] },
+    { featureType: "transit", stylers: [{ visibility: "off" }] },
+    { featureType: "road", elementType: "labels.icon", stylers: [{ visibility: "off" }] },
+    { elementType: "labels.text.stroke", stylers: [{ visibility: "off" }] },
+    { elementType: "labels.text.fill", stylers: [{ color: "#6b7280" }] },
+  ],
+  night: [
+    { elementType: "geometry", stylers: [{ color: "#242f3e" }] },
+    { elementType: "labels.text.stroke", stylers: [{ color: "#242f3e" }] },
+    { elementType: "labels.text.fill", stylers: [{ color: "#746855" }] },
+    { featureType: "administrative.locality", elementType: "labels.text.fill", stylers: [{ color: "#d59563" }] },
+    { featureType: "poi", elementType: "labels.text.fill", stylers: [{ color: "#d59563" }] },
+    { featureType: "poi.park", elementType: "geometry", stylers: [{ color: "#263c3f" }] },
+    { featureType: "poi.park", elementType: "labels.text.fill", stylers: [{ color: "#6b9a76" }] },
+    { featureType: "road", elementType: "geometry", stylers: [{ color: "#38414e" }] },
+    { featureType: "road", elementType: "geometry.stroke", stylers: [{ color: "#212a37" }] },
+    { featureType: "road", elementType: "labels.text.fill", stylers: [{ color: "#9ca5b3" }] },
+    { featureType: "road.highway", elementType: "geometry", stylers: [{ color: "#746855" }] },
+    { featureType: "road.highway", elementType: "geometry.stroke", stylers: [{ color: "#1f2835" }] },
+    { featureType: "road.highway", elementType: "labels.text.fill", stylers: [{ color: "#f3d19c" }] },
+    { featureType: "transit", elementType: "geometry", stylers: [{ color: "#2f3948" }] },
+    { featureType: "transit.station", elementType: "labels.text.fill", stylers: [{ color: "#d59563" }] },
+    { featureType: "water", elementType: "geometry", stylers: [{ color: "#17263c" }] },
+    { featureType: "water", elementType: "labels.text.fill", stylers: [{ color: "#515c6d" }] },
+    { featureType: "water", elementType: "labels.text.stroke", stylers: [{ color: "#17263c" }] },
+  ],
+};
+
+// WKT parser for POLYGON/MULTIPOLYGON to Google paths
+const parseWKTToPaths = (wkt) => {
+  if (!wkt) return [];
+  const trim = (s) => s.trim();
+  const toLatLng = (pair) => {
+    const [lon, lat] = pair.split(/\s+/).map(Number);
+    if (Number.isFinite(lat) && Number.isFinite(lon)) return { lat, lng: lon };
+    return null;
+  };
+
+  const isMulti = wkt.toUpperCase().startsWith("MULTIPOLYGON");
+  const inner = wkt.substring(wkt.indexOf("((")); // from first ((
+  const strip = inner.replace(/^KATEX_INLINE_OPEN+|KATEX_INLINE_CLOSE+$/g, ""); // remove leading/trailing parens
+
+  if (isMulti) {
+    // MULTIPOLYGON(((lon lat, ...)), ((lon lat, ...)))
+    const polygonsRaw = strip.split(")),((");
+    return polygonsRaw
+      .map((polyRaw) =>
+        polyRaw
+          .split("),(")
+          .map((ringRaw) =>
+            ringRaw.split(",").map(trim).map(toLatLng).filter(Boolean)
+          )
+      )
+      .filter((rings) => rings.length > 0);
+  } else {
+    // POLYGON((lon lat, ...),(hole...))
+    const ringsRaw = strip.split("),(");
+    const rings = ringsRaw
+      .map((ring) => ring.split(",").map(trim).map(toLatLng).filter(Boolean))
+      .filter((r) => r.length > 0);
+    return [rings];
+  }
+};
+
+// Legend component for thresholds
+const MapLegend = ({ thresholds, selectedMetric }) => {
+  const { thresholdKey, label, unit } = resolveMetricConfig(selectedMetric);
+  const list = thresholds[thresholdKey] || [];
+  if (!list.length) return null;
+
+  return (
+    <div className="absolute bottom-4 right-4 z-10 rounded-lg border bg-white dark:bg-slate-950 dark:text-white p-3 shadow">
+      <div className="text-sm font-semibold mb-2">{label} {unit ? `(${unit})` : ""}</div>
+      <div className="space-y-1">
+        {list.map((t, idx) => (
+          <div key={idx} className="flex items-center gap-2 text-xs">
+            <span className="inline-block w-4 h-3 rounded" style={{ backgroundColor: t.color }} />
+            <span>{(t.range || `${t.min} to ${t.max}`)}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 };
 
 const MapView = () => {
@@ -73,12 +163,26 @@ const MapView = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [showAllLogsPanel, setShowAllLogsPanel] = useState(false);
   const [activeFilters, setActiveFilters] = useState(null);
-
-  // Logs fetched by LogLayer and kept here for the detail panel
   const [drawnLogs, setDrawnLogs] = useState([]);
 
-  // Keep a ref to remove listener on unmount
+  // UI layer toggles
+  const [ui, setUi] = useState({
+    showSessions: true,
+    clusterSessions: true,
+    showLogsCircles: true,
+    showHeatmap: false,
+    showPolygons: false,
+    basemapStyle: "clean", // default neat style
+    selectedProjectId: null,
+    renderVisibleLogsOnly: true,
+  });
+
+  // Polygons state
+  const [projectPolygons, setProjectPolygons] = useState([]); // [{id, name, paths: [rings]}]
+
+  // Keep a ref to remove listener on unmount and track bounds
   const idleListenerRef = useRef(null);
+  const [visibleBounds, setVisibleBounds] = useState(null);
 
   // thresholds
   useEffect(() => {
@@ -97,7 +201,7 @@ const MapView = () => {
             lte_bler: JSON.parse(data.lte_bler_json || "[]"),
           });
         }
-      } catch (error) {
+      } catch {
         toast.error("Could not load color thresholds.");
       }
     };
@@ -124,17 +228,52 @@ const MapView = () => {
     if (isLoaded) fetchAllSessions();
   }, [isLoaded, fetchAllSessions]);
 
+  // Fetch polygons when toggled and project selected
+  useEffect(() => {
+    const loadPolygons = async () => {
+      if (!ui.showPolygons || !ui.selectedProjectId) {
+        setProjectPolygons([]);
+        return;
+      }
+      try {
+        const rows = await mapViewApi.getProjectPolygons({ projectId: ui.selectedProjectId });
+        // rows: [{ id, name, wkt }]
+        const parsed = (rows || []).map((r) => ({
+          id: r.id,
+          name: r.name,
+          rings: parseWKTToPaths(r.wkt), // [[[latlngs], [hole]], ...]
+        }));
+        setProjectPolygons(parsed);
+      } catch (err) {
+        console.error("Failed to load polygons", err);
+        toast.error("Failed to load project polygons");
+      }
+    };
+    loadPolygons();
+  }, [ui.showPolygons, ui.selectedProjectId]);
+
   const onMapLoad = useCallback((mapInstance) => {
     setMap(mapInstance);
-    // Restore viewport
+
     const saved = loadSavedViewport();
     if (saved) {
       mapInstance.setCenter({ lat: saved.lat, lng: saved.lng });
       mapInstance.setZoom(saved.zoom);
     }
-    // Persist viewport when user stops interacting
+
     idleListenerRef.current = mapInstance.addListener("idle", () => {
       saveViewport(mapInstance);
+      const b = mapInstance.getBounds?.();
+      if (b) {
+        const ne = b.getNorthEast();
+        const sw = b.getSouthWest();
+        setVisibleBounds({
+          north: ne.lat(),
+          east: ne.lng(),
+          south: sw.lat(),
+          west: sw.lng(),
+        });
+      }
     });
   }, []);
 
@@ -152,14 +291,20 @@ const MapView = () => {
     setActiveFilters(filters);
     setSelectedMetric(filters.measureIn?.toLowerCase() || "rsrp");
     setSelectedSessionData(null);
+    // Ensure logs layer is visible on apply
+    setUi((u) => ({ ...u, showLogsCircles: true }));
   };
 
   const handleClearFilters = useCallback(() => {
     setActiveFilters(null);
     setDrawnLogs([]);
     setShowAllLogsPanel(false);
-    fetchAllSessions(); // do not change viewport; keep saved zoom/center
+    fetchAllSessions();
   }, [fetchAllSessions]);
+
+  const handleUIChange = (partial) => {
+    setUi((prev) => ({ ...prev, ...partial }));
+  };
 
   const handleSessionMarkerClick = async (session) => {
     setIsLoading(true);
@@ -181,6 +326,9 @@ const MapView = () => {
     setShowAllLogsPanel(Boolean(logs?.length));
   }, []);
 
+  // Style selection
+  const mapStyles = useMemo(() => MAP_STYLES[ui.basemapStyle] || null, [ui.basemapStyle]);
+
   if (loadError) return <div>Error loading Google Maps.</div>;
   if (!isLoaded) return <Spinner />;
 
@@ -191,6 +339,8 @@ const MapView = () => {
       <MapSidebar
         onApplyFilters={handleApplyFilters}
         onClearFilters={handleClearFilters}
+        onUIChange={handleUIChange}
+        ui={ui}
       />
 
       {isLoading && (
@@ -205,25 +355,53 @@ const MapView = () => {
         zoom={14}
         onLoad={onMapLoad}
         onUnmount={onMapUnmount}
-        options={{ disableDefaultUI: true, zoomControl: true, mapId: MAP_ID }}
+        options={{
+          disableDefaultUI: true,
+          zoomControl: true,
+          mapId: MAP_ID,
+          styles: mapStyles || null,
+          gestureHandling: "greedy",
+        }}
       >
-        {/* Show session markers if no filters are active */}
-        {!activeFilters &&
-          allSessions.map((s) => {
-            const lat = parseFloat(s.start_lat);
-            const lng = parseFloat(s.start_lon);
-            if (isNaN(lat) || isNaN(lng)) return null;
-            return (
-              <Marker
-                key={`session-${s.id}`}
-                position={{ lat, lng }}
-                title={`Session ${s.id}`}
-                onClick={() => handleSessionMarkerClick(s)}
-              />
-            );
-          })}
+        {/* Sessions layer (with optional clustering) */}
+        {!activeFilters && ui.showSessions && (
+          ui.clusterSessions ? (
+            <MarkerClustererF>
+              {(clusterer) =>
+                allSessions.map((s) => {
+                  const lat = parseFloat(s.start_lat);
+                  const lng = parseFloat(s.start_lon);
+                  if (isNaN(lat) || isNaN(lng)) return null;
+                  return (
+                    <Marker
+                      key={`session-${s.id}`}
+                      position={{ lat, lng }}
+                      title={`Session ${s.id}`}
+                      clusterer={clusterer}
+                      onClick={() => handleSessionMarkerClick(s)}
+                    />
+                  );
+                })
+              }
+            </MarkerClustererF>
+          ) : (
+            allSessions.map((s) => {
+              const lat = parseFloat(s.start_lat);
+              const lng = parseFloat(s.start_lon);
+              if (isNaN(lat) || isNaN(lng)) return null;
+              return (
+                <Marker
+                  key={`session-${s.id}`}
+                  position={{ lat, lng }}
+                  title={`Session ${s.id}`}
+                  onClick={() => handleSessionMarkerClick(s)}
+                />
+              );
+            })
+          )
+        )}
 
-        {/* Show log circles when filters are active via LogLayer */}
+        {/* Logs layer via LogLayer (circles/heatmap) */}
         {activeFilters && map && (
           <LogLayer
             map={map}
@@ -232,9 +410,37 @@ const MapView = () => {
             thresholds={thresholds}
             onLogsLoaded={handleLogsLoaded}
             setIsLoading={setIsLoading}
+            showCircles={ui.showLogsCircles}
+            showHeatmap={ui.showHeatmap}
+            visibleBounds={ui.renderVisibleLogsOnly ? visibleBounds : null}
           />
         )}
+
+        {/* Project polygons overlay */}
+        {ui.showPolygons &&
+          projectPolygons.map((poly) =>
+            poly.rings.map((rings, idx) => (
+              <Polygon
+                key={`${poly.id}-${idx}`}
+                paths={rings}
+                options={{
+                  strokeColor: "#2563eb",
+                  strokeOpacity: 0.8,
+                  strokeWeight: 1.5,
+                  fillColor: "#3b82f6",
+                  fillOpacity: 0.08,
+                  clickable: true,
+                }}
+                onClick={() => toast.info(poly.name || `Region ${poly.id}`)}
+              />
+            ))
+          )}
       </GoogleMap>
+
+      {/* Legend for metric thresholds */}
+      {activeFilters && (ui.showLogsCircles || ui.showHeatmap) && (
+        <MapLegend thresholds={thresholds} selectedMetric={selectedMetric} />
+      )}
 
       {showAllLogsPanel && activeFilters && (
         <AllLogsDetailPanel
