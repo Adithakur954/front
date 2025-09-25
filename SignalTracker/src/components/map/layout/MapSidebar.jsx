@@ -126,14 +126,16 @@ const normalizeProviderName = (raw) => {
       <div className="flex-grow overflow-y-auto p-4 space-y-4">
         <div className="grid grid-cols-1 gap-3">
           <div>
-            <Label>Start Date</Label>
+            <Label lassName="p-2">Start Date</Label>
+            
             <DatePicker
               date={filters.startDate}
               setDate={(d) => handleFilterChange("startDate", d)}
             />
           </div>
           <div>
-            <Label>End Date</Label>
+            <Label lassName="p-2">End Date</Label>
+           
             <DatePicker
               date={filters.endDate}
               setDate={(d) => handleFilterChange("endDate", d)}
@@ -142,7 +144,8 @@ const normalizeProviderName = (raw) => {
         </div>
 
         <div>
-          <Label>Provider</Label>
+          <Label className="p-2">Provider</Label>
+          
           <Select
             onValueChange={(v) => handleFilterChange("provider", v)}
             value={filters.provider}
@@ -162,7 +165,7 @@ const normalizeProviderName = (raw) => {
         </div>
 
         <div>
-          <Label>Technology</Label>
+          <Label className="p-2">Technology</Label>
           <Select
             onValueChange={(v) => handleFilterChange("technology", v)}
             value={filters.technology}
@@ -182,7 +185,7 @@ const normalizeProviderName = (raw) => {
         </div>
 
         <div>
-          <Label>Visualize Metric</Label>
+          <Label className="p-2">Visualize Metric</Label>
           <Select
             onValueChange={(v) => handleFilterChange("measureIn", v)}
             value={filters.measureIn}
@@ -203,7 +206,7 @@ const normalizeProviderName = (raw) => {
         </div>
 
         <div>
-          <Label>Band / Frequency</Label>
+          <Label className="p-2">Band / Frequency</Label>
           <Select
             onValueChange={(v) => handleFilterChange("band", v)}
             value={filters.band}

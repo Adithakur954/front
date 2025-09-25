@@ -12,7 +12,10 @@ export const adminApi = {
   getDashboardGraphData: () => api.get("/Admin/GetDashboardGraphData"),
   getAllUsers: (filters) => api.post("/Admin/GetAllUsers", filters),
   getUsers: (params) => api.get("/Admin/GetUsers", { params }),
-
+ getOperatorCoverageRanking: ({ min, max }) =>
+    api.get('/Admin/GetOperatorCoverageRanking', { params: { min, max } }),
+  getOperatorQualityRanking: ({ min, max }) =>
+    api.get('/Admin/GetOperatorQualityRanking', { params: { min, max } }),
   getUserById: (userId) => {
     const formData = new FormData();
     formData.append("UserID", userId);

@@ -93,7 +93,7 @@ const SessionDetailPanel = ({ sessionData,
   const { session, logs } = sessionData;
 
   return (
-    <div className={`absolute top-0 right-0 h-full w-96 bg-white dark:bg-slate-900 shadow-2xl z-20 transform transition-transform ${sessionData ? 'translate-x-0' : 'translate-x-full'}`}>
+    <div className={`absolute top-0 right-0  w-96 text-white  bg-slate-900 shadow-2xl z-20 transform transition-transform ${sessionData ? 'translate-x-0' : 'translate-x-full'}`}>
       <div className="flex flex-col h-full">
         <div className="p-4 border-b flex justify-between items-center">
           <h3 className="text-lg font-bold">Session Details</h3>
