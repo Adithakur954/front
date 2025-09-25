@@ -363,7 +363,7 @@ const MapView = () => {
           gestureHandling: "greedy",
         }}
       >
-        {/* Sessions layer (with optional clustering) */}
+       
         {!activeFilters && ui.showSessions && (
           ui.clusterSessions ? (
             <MarkerClustererF>

@@ -157,7 +157,7 @@ const SettingsPage = () => {
     if (loading || !thresholds) return <Spinner />;
 
     return (
-        <div className="container mx-auto bg-gray-800 h-full space-y-8 p-4">
+        <div className="container mx-auto bg-gray-800 text-white h-full space-y-8 p-4">
             <h1 className="text-3xl font-bold">Settings</h1>
             <Card>
                 <CardHeader>

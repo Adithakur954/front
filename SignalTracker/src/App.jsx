@@ -18,6 +18,8 @@ import SettingsPage from './pages/Setting';
 import ManageSessionPage from './pages/ManageSession';
 import MapView from './pages/page';
 import AllLogsMapPage from './pages/AllMaplogpage';
+import HighPerfMap from "@/pages/HighPerfMap";
+import LogsCirclesPage from "@/pages/LogsCirclesPage";
 
 // --- Route Components (Unchanged) ---
 const PrivateRoute = ({ children }) => {
@@ -78,6 +80,8 @@ function App() {
                         <Route path="/manage-session" element={<PrivateRoute><ManageSessionPage /></PrivateRoute>} />
                         <Route path="/map" element={<PrivateRoute><MapView /></PrivateRoute>} />
                         <Route path="/alllogs" element={<PrivateRoute><AllLogsMapPage /></PrivateRoute>} />
+                        <Route path="/mapview" element={<PrivateRoute><HighPerfMap /></PrivateRoute>} />
+                        <Route path="/logscircles" element={<PrivateRoute><LogsCirclesPage /></PrivateRoute>} />
                         <Route path="*" element={<NotFoundPage />} />
                     </Routes>
                 

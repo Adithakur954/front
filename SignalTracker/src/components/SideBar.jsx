@@ -8,7 +8,7 @@ const SideBar = ({ collapsed }) => {
     { icon: LayoutDashboard, text: 'Dashboard', path: '/dashboard' },
     { icon: Upload, text: 'Upload Data', path: '/upload-data' },
     { icon: History, text: 'Manage Drive Sessions', path: '/drive-test-sessions' },
-    { icon: Map, text: 'Map View', path: '/map-view' },
+    { icon: Map, text: 'Map View', path: '/mapview' },
     
     { icon: Users, text: 'Manage User', path: '/manage-users' },
     { icon: Settings, text: 'Setting', path: '/settings' },
