@@ -4,7 +4,7 @@ import { GoogleMap, useJsApiLoader, Circle, InfoWindow } from '@react-google-map
 const mapContainerStyle = { height: "100%", width: "100%" };
 const LIBRARIES = ["places"];
 
-// --- NEW PROPS: onMarkerClick and activeMarkerIndex ---
+
 const MapWithMultipleCircles = ({ locations, onMarkerClick, activeMarkerIndex }) => {
   const { isLoaded, loadError } = useJsApiLoader({
     googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,

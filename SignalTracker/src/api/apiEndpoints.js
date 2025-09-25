@@ -30,6 +30,9 @@ export const adminApi = {
   },
   deleteSession: (sessionId) => {
     return api.delete(`/Admin/DeleteSession/DeleteSession?id=${parseInt(sessionId, 10)}`);
+  },
+  getSessionsByFilter: (filters) => {
+    return api.get("/Admin/GetSessionsByDateRange", filters);
   }
 };
 
@@ -46,8 +49,7 @@ export const mapViewApi = {
    
     endSession: (data) => api.post("/api/MapView/end_session", data),
 
-   
-    getNetworkLog: (params) => api.get("/api/MapView/GetNetworkLog", { params }),
+    getNetworkLog: (sessionId) => api.get(`/api/MapView/GetNetworkLog?session_id=${sessionId}`),
 
    
     getPredictionLog: (params) => api.get("/api/MapView/GetPredictionLog", { params }),
@@ -57,6 +59,8 @@ export const mapViewApi = {
 
     
     getProjects: () => api.get("/api/MapView/GetProjects"),
+
+    getBands: () => api.get("/api/MapView/GetBands"),
 
     // Matches: [HttpPost] UploadImage - Expects FormData
     uploadImage: (formData) => api.post("/api/MapView/UploadImage", formData, {

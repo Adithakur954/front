@@ -10,7 +10,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { UploadCloud, File, X, Download } from "lucide-react";
 import Spinner from "../components/common/Spinner";
-import SessionSelector  from "../components/common/SessionSelector";
+import SessionSelector from "../components/common/SessionSelector";
+// Assuming this is your API setup file
 import { excelApi } from "../api/apiEndpoints";
 import { FileDropzone } from '../components/upload/FileDropzone';
 import { useFileUpload } from '../hooks/useFileUpload';
@@ -42,6 +43,12 @@ const UploadDataPage = () => {
   const [uploadedFiles, setUploadedFiles] = useState([]);
   const [activeTab, setActiveTab] = useState("session");
   const { loading, errorLog, uploadFile, setErrorLog } = useFileUpload();
+
+  // --- NEW STATE FOR DATE FILTER AND SESSIONS ---
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [sessions, setSessions] = useState([]);
+  const [sessionsLoading, setSessionsLoading] = useState(false);
 
   const handleUpload = async () => {
     const files = activeTab === 'session' ? sessionFiles : predictionFiles;
@@ -137,19 +144,56 @@ const UploadDataPage = () => {
     fetchUploadedFiles();
   }, [fetchUploadedFiles, activeTab]);
 
- const handleDownloadTemplate = async () => {
+  // --- NEW FUNCTION TO FETCH SESSIONS BY DATE ---
+  // --- UPDATED FUNCTION TO FETCH SESSIONS WITH CORRECT ISO DATE FORMAT ---
+const handleFetchSessions = async () => {
+    if (!startDate || !endDate) {
+      toast.warn("Please select both a start and end date.");
+      return;
+    }
+    if (new Date(startDate) > new Date(endDate)) {
+      toast.error("Start date cannot be after the end date.");
+      return;
+    }
+    setSessionsLoading(true);
+    
+    // Create Date objects from the selected dates.
+    // This assumes the user's local timezone.
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+
+    // Set the time of the end date to the very last millisecond of the day.
+    // This makes the query inclusive of the entire selected end day.
+    end.setHours(23, 59, 59, 999);
+
+    // Convert the dates to the full ISO 8601 format in UTC (e.g., "2025-09-24T18:29:59.999Z")
+    // This matches the format that works for you.
+    const isoStartDate = start.toISOString();
+    const isoEndDate = end.toISOString();
+
     try {
-      // Determines the file type (1 or 2) from the active tab
+      // Pass the correctly formatted ISO date strings to the API.
+      const response = await excelApi.getSessionsByDateRange(isoStartDate, isoEndDate);
+      console.log("Fetched sessions:", response);
+      setSessions(response.Data || []);
+      if (!response.Data || response.Data.length === 0) {
+        toast.info("No sessions found for the selected dates.");
+      }
+    }  catch (error) {
+      console.error("Fetch sessions failed:", error);
+      toast.error("Failed to fetch sessions.");
+      setSessions([]);
+    } finally {
+      setSessionsLoading(false);
+    }
+};
+
+  const handleDownloadTemplate = async () => {
+    try {
       const fileType = activeTab === "session" ? 1 : 2;
-
-      // Calls the API endpoint GET /api/excel/template/{fileType}
       const response = await excelApi.downloadTemplate(fileType);
-
-      // Creates a blob from the response (the file data)
       const blob = new Blob([response], { type: "application/zip" });
       const url = window.URL.createObjectURL(blob);
-
-      // Creates a temporary link element to trigger the browser download
       const a = document.createElement("a");
       a.href = url;
       a.download = activeTab === "session" ? "Session_Template.zip" : "Prediction_Template.zip";
@@ -160,7 +204,7 @@ const UploadDataPage = () => {
     } catch {
       toast.error("Failed to download template.");
     }
-};
+  };
 
   const renderFileList = (files, type) =>
     files.length ? (
@@ -190,7 +234,7 @@ const UploadDataPage = () => {
   );
 
   return (
-    <div className="p-6 flex flex-col items-center h-full bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100">
+    <div className="p-6 flex flex-col items-center  bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100">
       <div className="max-w-4xl w-full">
         <h1 className="text-2xl font-semibold mb-4 text-center">Upload Data</h1>
 
@@ -227,9 +271,9 @@ const UploadDataPage = () => {
             {loading ? <Spinner /> : "Upload & Process"}
           </Button>
           <Button onClick={handleDownloadTemplate} variant="outline" size="lg">
-    <Download className="mr-2 h-4 w-4" />
-    Download Template
-</Button>
+            <Download className="mr-2 h-4 w-4" />
+            Download Template
+          </Button>
         </div>
 
         <div className="mt-10">
@@ -267,6 +311,44 @@ const UploadDataPage = () => {
             </Table>
           </div>
         </div>
+
+        {/* --- NEW SECTION FOR FETCHING AND DISPLAYING SESSIONS ---
+        <div className="mt-10">
+          <h2 className="text-xl font-semibold mb-4">Fetch Sessions by Date Range</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 items-center gap-4 mb-4">
+            <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+            <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+            <Button onClick={handleFetchSessions} disabled={sessionsLoading}className="">
+              {sessionsLoading ? <Spinner /> : "Fetch Sessions"}
+            </Button>
+          </div>
+
+          <div className="border rounded-lg mt-4">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Session ID</TableHead>
+                  <TableHead>Details</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {sessionsLoading ? (
+                  <TableRow><TableCell colSpan={2} className="text-center"><Spinner /></TableCell></TableRow>
+                ) : sessions.length > 0 ? (
+                  sessions.map((session) => (
+                    <TableRow key={session.id}>
+                      <TableCell className="font-medium">{session.id}</TableCell>
+                      <TableCell>{session.label}</TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow><TableCell colSpan={2} className="text-center h-24">No sessions found for the selected date range. Select dates and click "Fetch Sessions".</TableCell></TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div> */}
+        {/* </div> */}
+
       </div>
     </div>
   );

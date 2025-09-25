@@ -76,7 +76,7 @@ const DriveTestSessionsPage = () => {
     }
 
     return (
-        <div className="p-6 h-full flex flex-col">
+        <div className="p-6 h-full bg-gray-800 text-white flex flex-col">
             <h1 className="text-2xl font-semibold mb-4">Manage Drive Test Sessions</h1>
             <div className="rounded-lg border shadow-sm flex-grow overflow-y-auto">
                 <Table>
@@ -84,9 +84,11 @@ const DriveTestSessionsPage = () => {
                         <TableRow>
                             
                             <TableHead>User Details</TableHead>
-                            <TableHead>Start Time</TableHead>
-                            <TableHead>End Time</TableHead>
+                            <TableHead>Start Time - End Time</TableHead>
+                            <TableHead>Start Location</TableHead>
+                            <TableHead>End Location</TableHead>
                             <TableHead>Distance(in Km)</TableHead>
+                            <TableHead>Capture Frequency</TableHead>
                             <TableHead>Session Remarks</TableHead>
                             <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
@@ -96,16 +98,23 @@ const DriveTestSessionsPage = () => {
                             <TableRow key={session.id}>
                                 
 
-                                <TableCell>
+                                <TableCell className="whitespace-normal break-words max-w-[200px]">
                                     <div className="font-medium">{session.CreatedBy || 'Unknown User'} ({session.mobile || 'N/A'})</div>
                                     <div className="text-sm text-muted-foreground">
                                         {session.make}, {session.model}, {session.os}, {session.operator_name}
                                     </div>
                                 </TableCell>
-                                <TableCell>{formatDate(session.start_time)}</TableCell>
-                                <TableCell>{formatDate(session.end_time)}</TableCell>
-                                <TableCell>{session.distance_km || 'N/A'}</TableCell>
-                                <TableCell className="font-medium">{session.notes || 'No Remarks'}</TableCell>
+                                <TableCell className="whitespace-normal break-words max-w-[200px]"><div>{formatDate(session.start_time)}</div>
+<div>{formatDate(session.end_time)}</div></TableCell>
+                                <TableCell className="whitespace-normal break-words max-w-[200px]">{session.start_address
+}</TableCell>
+                                <TableCell className="whitespace-normal break-words max-w-[200px]">{session.end_address
+}</TableCell>
+                                <TableCell className="whitespace-normal break-words max-w-[200px]">{session.distance_km || 'N/A'}</TableCell>
+                                <TableCell className="font-medium whitespace-normal break-words max-w-[200px]"><div>{session.capture_frequency}, {session.operator_name}
+ </div></TableCell>
+                                <TableCell className="font-medium whitespace-normal break-words max-w-[200px]">{session.notes || 'No Remarks'}</TableCell>
+                                
                                 <TableCell className="text-right">
                                     <Button variant="outline" size="sm" onClick={() => handleViewOnMap(session.id)}>
                                         <Map className="h-4 w-4 mr-2" />

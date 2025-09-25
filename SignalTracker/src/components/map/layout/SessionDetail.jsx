@@ -1,5 +1,3 @@
-// src/components/map/layout/SessionDetailPanel.jsx
-
 import React, { useMemo } from 'react';
 import { X } from 'lucide-react';
 import Spinner from '@/components/common/Spinner';
@@ -12,7 +10,11 @@ const calculateAverage = (logs, key) => {
   return (sum / validLogs.length).toFixed(2);
 };
 
-const SessionDetailPanel = ({ sessionData, onClose, isLoading }) => {
+const SessionDetailPanel = ({ sessionData,
+  isLoading,
+  onClose,
+  thresholds,
+  selectedMetric }) => {
   const stats = useMemo(() => {
     if (!sessionData || !sessionData.logs || sessionData.logs.length === 0) {
       return { avgRsrp: 'N/A', avgRsrq: 'N/A', avgSinr: 'N/A', uniqueNetworks: 'N/A' };
@@ -26,6 +28,29 @@ const SessionDetailPanel = ({ sessionData, onClose, isLoading }) => {
       uniqueNetworks: uniqueNetworks || 'N/A',
     };
   }, [sessionData]);
+
+  const metricSummary = useMemo(() => {
+    if (!sessionData || !sessionData.logs || !thresholds[selectedMetric]) return [];
+
+    const ranges = thresholds[selectedMetric];
+
+    // Initialize counts
+    const summary = ranges.map((r) => ({ ...r, count: 0 }));
+
+    // Count logs per range
+    sessionData.logs.forEach((log) => {
+      const value = parseFloat(log[selectedMetric]);
+      summary.forEach((range) => {
+        if (value >= range.min && value <= range.max) range.count += 1;
+      });
+    });
+
+    return summary;
+  }, [sessionData, thresholds, selectedMetric]);
+
+  if (!sessionData) return null;
+
+  
 
   if (!sessionData) {
     return null; // Don't render if no data is provided
@@ -77,13 +102,21 @@ const SessionDetailPanel = ({ sessionData, onClose, isLoading }) => {
               ) : (
                 // SUMMARY DISPLAY FOR A SINGLE SESSION
                 <div>
+                  {console.log('Single session data:', session)}
                   <h4 className="font-semibold mb-2">Session Summary</h4>
                   <div className="text-sm space-y-1 bg-gray-50 dark:bg-slate-800 p-3 rounded-lg">
-                    <p><strong>Session ID:</strong> {session.id}</p>
-                    <p><strong>User:</strong> {session.CreatedBy || 'N/A'}</p>
-                    <p><strong>Device:</strong> {`${session.make || ''} ${session.model || ''}`.trim() || 'N/A'}</p>
-                    <p><strong>Started:</strong> {session.start_time ? new Date(session.start_time).toLocaleString() : 'N/A'}</p>
-                  </div>
+  <p><strong>Session ID:</strong> {session.id}</p>
+  <p><strong>User:</strong> {session.CreatedBy || 'N/A'}</p>
+  <p><strong>Device:</strong> {`${session.make || ''} ${session.model || ''}`.trim() || 'N/A'}</p>
+  <p><strong>Technology:</strong> {session.operator_name || 'N/A'}</p>
+  <p><strong>Starting Address:</strong> {session.start_address || 'N/A'}</p>
+  <p><strong>Ending Address:</strong> {session.end_address || 'N/A'}</p>
+  <p><strong>Started:</strong> {session.start_time ? new Date(session.start_time).toLocaleString() : 'N/A'}</p>
+  <p><strong>Ended:</strong> {session.end_time ? new Date(session.end_time).toLocaleString() : 'N/A'}</p>
+  <p><strong>Coordinates:</strong> {session.start_lat}, {session.start_lon}</p>
+</div>
+
+
                 </div>
               )}
 
@@ -98,36 +131,24 @@ const SessionDetailPanel = ({ sessionData, onClose, isLoading }) => {
                 </div>
               </div>
 
-              {/* Combined Network Logs Table (works for both single and multi-session) */}
-              <div>
-                <h4 className="font-semibold mb-2">Combined Network Logs ({logs.length})</h4>
-                {logs.length > 0 ? (
-                  <div className="border rounded-lg overflow-auto max-h-[calc(100vh-32rem)]">
-                    <table className="min-w-full text-sm">
-                      <thead className="bg-gray-100 dark:bg-slate-700 sticky top-0">
-                        <tr>
-                          <th className="p-2 text-left">RSRP</th>
-                          <th className="p-2 text-left">RSRQ</th>
-                          <th className="p-2 text-left">SINR</th>
-                          <th className="p-2 text-left">Network</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {logs.map((log, index) => (
-                          <tr key={index} className="border-t dark:border-slate-700">
-                            <td className="p-2">{log.rsrp ?? 'N/A'}</td>
-                            <td className="p-2">{log.rsrq ?? 'N/A'}</td>
-                            <td className="p-2">{log.sinr ?? 'N/A'}</td>
-                            <td className="p-2">{log.network ?? 'N/A'}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                ) : (
-                  <p className="text-sm text-gray-500">No network logs found for this selection.</p>
-                )}
-              </div>
+             <h2 className="text-lg font-semibold mb-2">Session {sessionData.session.id}</h2>
+      <p>Total logs: {sessionData.logs.length}</p>
+
+      <h3 className="mt-4 font-medium">Metric: {selectedMetric.toUpperCase()}</h3>
+      <div className="mt-2">
+        {metricSummary.map((range, idx) => (
+          <div key={idx} className="flex items-center justify-between mb-1">
+            <div className="flex items-center gap-2">
+              <div
+                className="w-4 h-4 rounded"
+                style={{ backgroundColor: range.color }}
+              ></div>
+              <span>{range.min} - {range.max}</span>
+            </div>
+            <span>{range.count}</span>
+          </div>
+        ))}
+      </div>
             </>
           )}
         </div>
