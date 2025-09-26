@@ -1,9 +1,10 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
-/* This is the new section that defines the theme colors for your UI components.
-  It provides solid backgrounds for both light and dark modes.
-*/
+@tailwind utilities;
+
+
+
 body {
   @apply bg-white text-gray-800;
 }

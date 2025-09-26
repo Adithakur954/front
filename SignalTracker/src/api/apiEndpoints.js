@@ -65,23 +65,21 @@ export const mapViewApi = {
 
     getBands: () => api.get("/api/MapView/GetBands"),
 
-    // Matches: [HttpPost] UploadImage - Expects FormData
+    
     uploadImage: (formData) => api.post("/api/MapView/UploadImage", formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
     }),
 
-    // Matches: [HttpPost] log_networkAsync
+    
     logNetwork: (data) => api.post("/api/MapView/log_networkAsync", data),
 
-    // Matches: [HttpGet] GetProviders
+    
     getProviders: () => api.get("/api/MapView/GetProviders"),
 
-    // Matches: [HttpGet] GetTechnologies
+   
     getTechnologies: () => api.get("/api/MapView/GetTechnologies"),
 
-    // Note: The following endpoints were removed as they do not exist in the provided MapViewController.cs
-    // - getCellSites, getServingCells, getCrowdsourceData, getElevationProfile,
-    // - getNetworkIssues, createTask, getTasks, updateTask
+   
 };
 
 /* ---------------- HOME CONTROLLER ---------------- */
@@ -108,7 +106,7 @@ export const excelApi = {
   uploadFile: (formData) => api.post('/ExcelUpload/UploadExcelFile', formData),
 
   
-  // getUploadedFiles: (type) => api.get(`/api/excel/files/${type}`),
+  
 
   
   downloadTemplate: (fileType) => {

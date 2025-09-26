@@ -78,7 +78,7 @@ export default function LogCirclesLayer({
         heatmapRef.current = null;
       }
     };
-  }, [filters, map]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [filters, map]); 
 
   // Parse & prep
   const processed = useMemo(() => {
@@ -119,7 +119,7 @@ export default function LogCirclesLayer({
     }));
   }, [visibleProcessed, selectedMetric, thresholds]);
 
-  // Heatmap (optional)
+  // Heatmap layer
   useEffect(() => {
     if (!map || !showHeatmap) {
       if (heatmapRef.current) heatmapRef.current.setMap(null);

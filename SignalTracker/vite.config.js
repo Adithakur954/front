@@ -3,17 +3,19 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import path from 'path'
 
-// https://vite.dev/config/
 export default defineConfig({
   
-   content: ["./src/**/*.{js,jsx,ts,tsx}"],
-  
-  plugins: [react(),
-    tailwindcss(),
+  plugins: [
+    react(),
+    tailwindcss(),   // Tailwind v4 works through this
   ],
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
     },
+  },
+  build: {
+    outDir: "dist",
+    assetsDir: "assets",
   },
 })

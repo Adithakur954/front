@@ -1,5 +1,3 @@
-// src/pages/UploadData.jsx
-
 import React, { useState, useCallback, useEffect } from "react";
 import { toast } from "react-toastify";
 import { useDropzone } from "react-dropzone";
@@ -11,9 +9,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { UploadCloud, File, X, Download } from "lucide-react";
 import Spinner from "../components/common/Spinner";
 import SessionSelector from "../components/common/SessionSelector";
-// Assuming this is your API setup file
+
 import { excelApi } from "../api/apiEndpoints";
-import { FileDropzone } from '../components/upload/FileDropzone';
+
 import { useFileUpload } from '../hooks/useFileUpload';
 
 const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
@@ -144,8 +142,7 @@ const UploadDataPage = () => {
     fetchUploadedFiles();
   }, [fetchUploadedFiles, activeTab]);
 
-  // --- NEW FUNCTION TO FETCH SESSIONS BY DATE ---
-  // --- UPDATED FUNCTION TO FETCH SESSIONS WITH CORRECT ISO DATE FORMAT ---
+  
 const handleFetchSessions = async () => {
     if (!startDate || !endDate) {
       toast.warn("Please select both a start and end date.");
